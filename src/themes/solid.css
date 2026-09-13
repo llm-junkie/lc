@@ -1,0 +1,534 @@
+/* =============================================================================
+ *  Solid theme override — gated by `:root.solid`.
+ * =============================================================================
+ *
+ *  Why this file exists
+ *  -------------------
+ *  The default theme in `../index.css` is glassmorphic: chat bubbles, the
+ *  composer, the reasoning overlay, the sidebar footer, and various other
+ *  surfaces use `backdrop-filter: blur(...)` plus a low-alpha `rgba(...)`
+ *  background so whatever's behind shows through. WebView2 on Windows
+ *  (Chromium-based, baseline chrome88) renders this exactly as designed.
+ *
+ *  WebKitGTK (Linux Tauri) does not render `backdrop-filter` in its
+ *  default configuration. The result there: every "glass" surface
+ *  renders as a flat translucent fill with no blur — the design loses
+ *  its visual identity and the surfaces look unfinished, not on-brand.
+ *  (macOS WebKit does render internal `backdrop-filter`; the native
+ *  behind-window vibrancy layer is a separate concern owned by
+ *  `platform/material-resolver.ts` and the gate rules in `index.css`,
+ *  not by this file.)
+ *
+ *  This file is the design response: re-theme those same surfaces with
+ *  solid colors. No `backdrop-filter`, no low-alpha rgba — opaque
+ *  backgrounds, slightly stronger borders, and the existing shadow
+ *  scale. The result is a deliberate, flat aesthetic that doesn't
+ *  depend on the platform's blur support.
+ *
+ *  How it activates — `:root.solid` gate
+ *  -------------------------------------
+ *  Every rule below is namespaced under `:root.solid` so it only
+ *  applies when the document root has the `solid` class. The class is
+ *  set by `utils/useApplyMaterial.ts` whenever the runtime material
+ *  resolver (`platform/material.ts`) resolves the active material to
+ *  `matte`, based on the user's `materialMode` setting:
+ *
+ *    `'auto'` (default) — native material where the platform supports
+ *      one (Mica/Acrylic on Windows 11/10, vibrancy on macOS) with
+ *      internal CSS glass on top; matte on Linux and anywhere a
+ *      native activation fails or is unavailable.
+ *    `'glass'`          — CSS glass everywhere; matte only as the
+ *      readable fallback when native activation fails on
+ *      Windows/macOS.
+ *    `'solid'`          — class always set, on every platform.
+ *
+ *  Token system
+ *  ------------
+ *  All solid-mode colors live as `--solid-*` custom properties defined
+ *  on `:root.solid` (with theme variants on `[data-theme='dark']` /
+ *  `[data-theme='light']`). The override rules below reference those
+ *  tokens, never hardcoded colors. This keeps the solid palette in
+ *  one place — to tweak the flat aesthetic, edit the token block at
+ *  the top of this file, not every rule.
+ *
+ *    --solid-bg-1     — lightest elevated surface (composer focus,
+ *                        attachment thumb focus). The "panel" tone.
+ *    --solid-bg-2     — mid surface (sidebar footer, reasoning overlay
+ *                        inner, composer hover). The "docked UI" tone.
+ *    --solid-bg-3     — lower surface. The "toolbar" tone. Its only
+ *                        consumer is the tps pill; the composer
+ *                        action buttons use --solid-bg-2.
+ *    --solid-bg-bubble-file — file row inside a bubble (dark-mode
+ *                        subtle white tint → solid equivalent).
+ *    --solid-bg-overlay — diagram-viewer modal backdrop. Declared as
+ *                        an opaque base and mixed down to 85% at the
+ *                        use site (see the backdrop rule for why the
+ *                        alpha must not live in `opacity`).
+ *    --solid-border-1 — default 1px border.
+ *    --solid-border-2 — stronger border (assistant bubble, preset
+ *                        button hover).
+ *    --solid-user-bubble / --solid-user-bubble-border — user bubble
+ *                        fill + border (replaces the dark-mode indigo
+ *                        gradient).
+ *    --solid-accent / --solid-accent-hover — preset button primary
+ *                        fill (replaces translucent --accent-2 in
+ *                        light mode).
+ *
+ *  Scope
+ *  -----
+ *  Every element that uses `backdrop-filter` or a low-alpha
+ *  surface-fill rgba in the default theme gets a solid override
+ *  here. Intentionally translucent overlays (params/settings
+ *  dim layers, text-preview, lightbox-footnote pill) and colored
+ *  status chips (tag-reasoning, tag-vision, tag-tools, profile
+ *  variant chips) are NOT overridden — they read correctly without
+ *  blur and are meant to be translucent over any background.
+ *
+ *  If a future change in `index.css` adds a new glassmorphic surface,
+ *  add the override here too, using the existing tokens.
+ * ============================================================================= */
+
+
+/* ------------------------------------------------------------------ */
+/*  Solid color tokens                                                */
+/* ------------------------------------------------------------------ */
+
+/* Base container — the tokens themselves vary by theme below. The
+   non-theme variants here are values that are the same in both
+   themes (e.g. the opaque modal backdrop). */
+:root.solid {
+  --solid-bg-overlay: rgb(0, 0, 0); /* mixed to 85% at the use site */
+}
+
+:root.solid[data-theme='dark'] {
+  --solid-bg-1: #36363c;            /* composer:focus, attachment thumb focus */
+  --solid-bg-2: #2e2e33;            /* sidebar footer, reasoning inner, composer:hover */
+  --solid-bg-3: #212125;            /* tps pill (sole consumer) */
+  --solid-bg-bubble-file: #1f1f23;  /* file row inside bubble (was rgba(255,255,255,0.04)) */
+  --solid-border-1: #2a2a30;
+  --solid-border-2: #3a3a42;
+  --solid-user-bubble: rgb(50, 52, 95);
+  --solid-user-bubble-border: rgb(99, 102, 241);
+  --solid-accent: #818cf8;
+  --solid-accent-hover: #a5b4fc;
+}
+
+:root.solid[data-theme='light'] {
+  /* ── pre-2026-06-23 palette (backup) ──────────────────────────
+     --solid-bg-1: #ffffff;
+     --solid-bg-2: #f4f4f5;   ← same as --bg-elev-2 → no separation
+     --solid-bg-3: #e9e9eb;
+     --solid-bg-bubble-file: #f4f4f5;
+     ──────────────────────────────────────────────────────────── */
+  --solid-bg-1: #fbfbff;           /* peak — composer focus */
+  --solid-bg-2: #efeff3;           /* = core elev-3, matches dark sb2=e3 */
+  --solid-bg-3: #e4e4e8;           /* = core elev-2 (bubble bg) */
+  --solid-bg-bubble-file: #f5f5f7; /* = sb3, same as dark */
+  --solid-border-1: #e4e4e7;
+  --solid-border-2: #d4d4d8;
+  --solid-user-bubble: #eef2ff;
+  --solid-user-bubble-border: #c7d2fe;
+  --solid-accent: #4f46e5;
+  --solid-accent-hover: #4338ca;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Chat bubbles                                                       */
+/* ------------------------------------------------------------------ */
+
+/* User bubble — the dark-mode default is a low-alpha indigo gradient
+   that relies on the page bg showing through (and the blur softening
+   it). In solid mode that paints as a washed-out translucent fill.
+   Replace with a solid indigo surface that reads the same way on every
+   platform. Light mode's --user-bubble token is already opaque
+   (#eef2ff) but the gradient is still ugly without blur, so use the
+   solid token for both themes. */
+:root.solid .bubble-user {
+  background: var(--solid-user-bubble);
+  border-color: var(--solid-user-bubble-border);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* User + assistant bubble — kill the blur, keep the borders. */
+:root.solid .bubble-user,
+:root.solid .bubble-assistant {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Strengthen the assistant bubble's border slightly so it has a
+   clear edge without the glass effect defining it. */
+:root.solid .bubble-assistant {
+  border-color: var(--solid-border-2);
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Bubble file row (attachment inside a message)                      */
+/* ------------------------------------------------------------------ */
+
+/* Default (dark) uses rgba(255,255,255,0.04) — a barely-visible white
+   tint over the bubble's dark bg. In solid mode use a solid mid
+   surface. The hover state uses rgba(255,255,255,0.08) — same idea,
+   slightly more visible. */
+:root.solid .bubble-file {
+  background: var(--solid-bg-bubble-file);
+  border-color: var(--solid-border-1);
+}
+:root.solid .bubble-file:hover {
+  background: var(--solid-bg-2);
+  border-color: var(--solid-accent);
+}
+:root.solid .bubble-file.is-missing:hover,
+:root.solid .bubble-file.is-editing:hover {
+  background: var(--solid-bg-bubble-file);
+  border-color: var(--solid-border-1);
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Composer (input box) and its hover / focus states                  */
+/* ------------------------------------------------------------------ */
+
+/* Hover (dark): default uses rgba(70,70,101,0.181) with blur. Solid:
+   opaque mid surface, no blur. */
+:root.solid .composer:hover {
+  background: var(--solid-bg-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Focus-within (dark): default uses --bg-elev-4 (already solid) but
+   adds blur. Solid: keep the solid bg, drop the blur. */
+:root.solid .composer:focus-within {
+  background: var(--solid-bg-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Pin composer — same treatment as hover: opaque mid surface, no blur. */
+:root.solid .composer-wrap.pinned .composer {
+  background: var(--solid-bg-2);
+  border-color: var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Pinned + focused: restore accent border (same specificity fix). */
+:root.solid .composer-wrap.pinned .composer:focus-within {
+  border-color: var(--accent);
+}
+/* The one light-only rule in this file that is not a duplicate: light
+   softens the focus ring to 45% accent, and solid mode has to restate it
+   because the rule above would otherwise win. Gated on `[data-base]`, not
+   `[data-theme]`, so a light-base custom theme gets it too — see the
+   `[data-base]` note in `index.css`. */
+:root.solid[data-base='light'] .composer-wrap.pinned .composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Composer wrap is ALWAYS transparent — the wrap never carries a
+   background in any theme or mode. In glassmorphic mode the wrap's
+   `background: transparent !important` lets the composer-act-as-
+   glass look (blur of what's behind). In solid mode the wrap stays
+   transparent too; the composer's box and the action row below it
+   are the opaque surfaces (each carries its own bg), and the wrap's
+   24px bottom padding is intentionally transparent empty space.
+
+   Earlier drafts tried to give the wrap a bg in solid+focus to
+   hide the bubble content behind the action row — wrong. The fix
+   is on the action row (next block), not the wrap. */
+
+/* Composer action row — the strip of buttons (Code / Attach / etc.)
+   below the composer's box. The action row carries NO background
+   in any theme or mode (glassmorphic OR solid). In glassmorphic mode
+   the composer's blur extends visually across the row; in solid mode
+   the row is fully transparent and bubble content scrolls behind
+   it. That's intentional — the composer's box is the only opaque
+   "input panel" surface; the row is just floating buttons.*/
+
+
+/* ------------------------------------------------------------------ */
+/*  Composer action buttons (preset chip, attach button)               */
+/* ------------------------------------------------------------------ */
+
+/* Default state. The base rule has `backdrop-filter` but no explicit
+   bg (inherits the button base's `background: none`), so the
+   glassmorphic effect is just the blur of whatever's behind. In solid
+   mode, give the buttons a real toolbar surface. */
+:root.solid .composer-action-btn {
+  background: var(--solid-bg-2);
+  border: 1px solid var(--solid-border-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root.solid .composer-action-btn:hover:not(:disabled) {
+  background: var(--solid-bg-2);
+  border-color: var(--solid-border-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root.solid .composer-action-btn:active:not(:disabled) {
+  background: var(--solid-bg-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Preview overlay (reasoning / tools floating panel)                  */
+/* ------------------------------------------------------------------ */
+
+/* Inner panel. Default dark uses rgba(70,70,101,0.312) — lavender
+   glass. Solid: opaque mid surface. Default light uses
+   rgba(255,255,255,0.519) — white glass. Solid: opaque white. */
+:root.solid .preview-overlay-inner {
+  background: var(--solid-bg-1);
+  border-color: var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Whiteboard owns opaque surfaces in solid mode; no chat content can show
+   through the active board, its chrome, or the discard confirmation. */
+:root.solid .whiteboard-dialog,
+:root.solid .whiteboard-pane-body,
+:root.solid .whiteboard-board {
+  background: var(--solid-bg-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root.solid .whiteboard-header,
+:root.solid .whiteboard-footer,
+:root.solid .whiteboard-confirm,
+:root.solid .whiteboard-editor textarea {
+  background: var(--solid-bg-2);
+  border-color: var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root.solid .whiteboard-board-toolbar {
+  background: var(--solid-bg-1);
+  border-color: var(--solid-border-1);
+}
+:root.solid .reasoning-window-expand {
+  background: var(--solid-bg-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* ------------------------------------------------------------------ */
+/*  Tooltips                                                          */
+/* ------------------------------------------------------------------ */
+
+/* The context-window meter, usage report, and generation-parameter
+   popovers all share `.token-meter-tooltip`. Solid mode keeps the same
+   elevated family while removing the blur and translucent fill. */
+:root.solid .token-meter-tooltip {
+  background: var(--solid-bg-1);
+  border-color: var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Modal panels (About, Keyboard Shortcuts)                           */
+/* ------------------------------------------------------------------ */
+
+:root.solid .about-modal,
+:root.solid .kbd-modal {
+  background: var(--solid-bg-2);
+  border-color: var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Attachments (file thumbnails in the composer strip)                */
+/* ------------------------------------------------------------------ */
+
+/* Attachment thumb base (idle / hover). The thumbs are inside the
+   composer strip and only become visible when the composer is
+   focused, but match the idle state too in case the focus rule
+   misses for any reason.
+   Default light uses rgba(255,255,255,0.85); default dark uses
+   --bg-elev-4 (already solid). Solid: opaque surface, drop blur. */
+:root.solid .attachment-thumb {
+  background: var(--solid-bg-bubble-file);
+  border-color: var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root.solid .attachment-thumb:hover {
+  background: var(--solid-bg-2);
+  border-color: var(--solid-border-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Focus-within override. `index.css` applies
+   `backdrop-filter: blur(8px)` plus a translucent background through two
+   rules, and this one rule has to beat both:
+
+     `.composer-wrap:has(.composer:focus-within) .attachment-thumb`
+       0,4,0 — beaten outright
+     `[data-base='light'] .composer-wrap:has(.composer:focus-within)
+      .attachment-thumb`
+       0,6,0 — TIED, and won on source order
+
+   This rule is 0,6,0. Same token as the base rule — auto-themed via
+   --solid-bg-bubble-file.
+
+   Two things about those numbers, both easy to get wrong:
+
+   1. `:has()` contributes ONLY its most specific argument's
+      specificity and adds nothing of its own — so
+      `:has(.composer:focus-within)` counts as 0,2,0, not 0,3,0.
+      These triples were measured by competitive ranking against
+      generated selector chains, not derived by hand; hand arithmetic
+      over `:has()` has produced wrong answers here before.
+
+   2. That tie is broken by SOURCE ORDER, not by specificity — this file
+      must load after `index.css`. The ordering lives in `src/main.tsx`
+      (`./index.css` then `./themes/solid.css`) and is load-bearing:
+      swap those two imports and every equal-specificity override in this
+      file silently stops winning.
+
+      This rule is not alone in that. `.composer:hover` (0,4,0),
+      `.composer:focus-within` (0,4,0),
+      `.composer-wrap.pinned .composer` (0,5,0) and
+      `.preview-overlay-inner` (0,3,0) ALSO tie their `[data-base='light']`
+      counterpart in `index.css` and win only on load order. Six ties in
+      this file are load-bearing.
+
+   (The light-gated `index.css` rule named above looks like a duplicate of
+   its unqualified sibling — identical declarations — but its
+      specificity is load-bearing in the pinned+focused state, where it has to
+      out-rank the 0,5,0 light pinned rule that would otherwise take the
+      thumb's accent ring away.) */
+:root.solid .composer-wrap:has(.composer:focus-within) .attachment-thumb {
+  background: var(--solid-bg-1);
+  border-color: var(--accent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Pinned composer — same treatment as focused: opaque surface,
+   matching the composer input's focus background.
+
+   The blur reset is load-bearing, not decorative. `index.css` sets
+   `backdrop-filter` on this element twice: once unqualified
+   (`.composer-wrap.pinned .attachment-thumb`, 0,3,0 — beaten by the
+   0,3,0 base reset above on source order) and once light-base-gated
+   (`:root[data-base='light'] .composer-wrap.pinned .attachment-thumb`,
+   0,5,0). Only this rule ties that 0,5,0 selector, so if it omits
+   `backdrop-filter` the light-theme blur survives into solid mode
+   with an opaque fill painted over it — invisible, but still costing
+   a real backdrop-root sample every composited frame, on exactly the
+   platforms where solid mode exists because blur doesn't work. */
+:root.solid .composer-wrap.pinned .attachment-thumb {
+  background: var(--solid-bg-1);
+  border-color: var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Sidebar footer                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Default dark uses a gradient rgba(255,255,255,0.02→0.08) with a
+   6%-white border-top and blur. Default light uses a gradient
+   rgba(0,0,0,0.06→0.01) with an 8%-black border-top (no blur).
+   Solid: opaque mid surface + opaque border. */
+:root.solid .sidebar-footer {
+  background: var(--solid-bg-2);
+  border-top: 1px solid var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Tok/s pill (chat-header live status)                               */
+/* ------------------------------------------------------------------ */
+
+:root.solid .tps {
+  background: var(--solid-bg-3);
+  border: 1px solid var(--solid-border-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Modal backdrops (Mermaid + Excalidraw diagram viewers)             */
+/* ------------------------------------------------------------------ */
+
+/* Default uses rgba(0,0,0,0.72) PLUS a 2px blur to soften what's
+   behind. The dim is intentional (the user knows the modal is up)
+   and works on every platform. The blur is a "nice to have" — a
+   no-op on Linux/macOS WebKit, harmless on Windows. For solid mode
+   we keep the dim but drop the blur and bump the opacity slightly
+   (no soft-blur halo to lean on, so the dim needs to do more work
+   to read as "modal is up").
+
+   Both viewers are styled identically here, deliberately. `index.css`
+   defines `.excalidraw-modal-backdrop` as a copy of
+   `.mermaid-modal-backdrop` "so the diagram viewers feel like one
+   family" — that promise only holds if the solid override covers
+   both. It previously covered Mermaid alone, which left Excalidraw
+   dimmer-by-0.13 and still blurring in the mode where the blur
+   renders as nothing.
+
+   IMPORTANT: the transparency MUST live in the `background` color
+   (alpha channel), NOT in the `opacity` property. `opacity` on the
+   backdrop cascades to every child — including the modal inside it
+   — making the diagram and toolbar semi-transparent too. Mixing
+   --solid-bg-overlay down to 85% keeps the backdrop translucent but
+   leaves the modal's contents fully opaque. */
+:root.solid .mermaid-modal-backdrop,
+:root.solid .excalidraw-modal-backdrop {
+  background: color-mix(in srgb, var(--solid-bg-overlay) 85%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Sidebar conversation-list chrome (compact mode labels)             */
+/* ------------------------------------------------------------------ */
+
+:root.solid .conv-model,
+:root.solid .conv-rename,
+:root.solid .conv-action-rename,
+:root.solid .conv-action-archive,
+:root.solid .conv-action-export {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root.solid .conv-action-archive.is-delete.is-armed {
+  /* The default is muted gray; armed (shift held) is red. On Windows
+     the blur is purely decorative — without it, the chip just has a
+     flat red surface, which still reads correctly. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Composer error chip                                                */
+/* ------------------------------------------------------------------ */
+
+:root.solid .composer-error button:hover {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Empty-state / chat-empty chat code                                */
+/* ------------------------------------------------------------------ */
+
+:root.solid .messages-empty code {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}

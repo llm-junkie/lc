@@ -1,0 +1,70 @@
+.safe-start-shell {
+  box-sizing: border-box;
+  min-height: 100vh;
+  overflow: auto;
+  padding: 32px 20px;
+  background: #eef2f7;
+  color: #172033;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.safe-start-shell *, .safe-start-shell *::before, .safe-start-shell *::after {
+  box-sizing: border-box;
+}
+
+.safe-start-card {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 30px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 45px rgb(15 23 42 / 10%);
+}
+
+.safe-start-card.compact { width: min(620px, 100%); }
+.safe-start-header h1 { margin: 10px 0 8px; font-size: 28px; line-height: 1.2; }
+.safe-start-header p, .safe-start-section p { margin: 0 0 16px; color: #475569; }
+.safe-start-badge { display: inline-block; padding: 4px 9px; border-radius: 999px; background: #fff1cc; color: #7a4b00; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.safe-start-badge.neutral { background: #e2e8f0; color: #334155; }
+.safe-start-facts { display: grid; gap: 1px; margin: 24px 0; overflow: hidden; border: 1px solid #dbe3ed; border-radius: 10px; background: #dbe3ed; }
+.safe-start-facts div { display: grid; grid-template-columns: minmax(160px, .8fr) 1.2fr; gap: 12px; padding: 11px 13px; background: #f8fafc; }
+.safe-start-facts dt { color: #64748b; }
+.safe-start-facts dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.safe-start-section { margin-top: 18px; padding: 20px; border: 1px solid #dbe3ed; border-radius: 10px; }
+.safe-start-section h2 { margin: 0 0 6px; font-size: 17px; }
+.safe-start-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.safe-start-actions.vertical { align-items: flex-start; flex-direction: column; }
+.safe-start-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.safe-start-shell button { min-height: 38px; padding: 8px 13px; border: 1px solid #aeb9c8; border-radius: 8px; background: #fff; color: #172033; font: inherit; font-weight: 600; cursor: pointer; }
+.safe-start-shell button:hover { background: #f1f5f9; }
+.safe-start-shell button:disabled { cursor: wait; opacity: .6; }
+.safe-start-shell .safe-start-primary { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+.safe-start-shell .safe-start-primary:hover { background: #1e40af; }
+.safe-start-link { min-height: auto !important; padding: 3px 5px !important; border: 0 !important; color: #1d4ed8 !important; }
+.safe-start-checkbox { display: flex; gap: 8px; align-items: center; margin: 0 0 14px; }
+.safe-start-report-preview { max-height: 330px; overflow: auto; margin: 14px 0; padding: 13px; border: 1px solid #cbd5e1; border-radius: 8px; background: #0f172a; color: #e2e8f0; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.safe-start-status, .safe-start-error { margin: 12px 0 0 !important; font-size: 13px; }
+.safe-start-error { color: #b42318 !important; }
+.safe-start-guarantee { margin: 22px 2px 0; color: #475569; font-size: 13px; }
+
+@media (prefers-color-scheme: dark) {
+  .safe-start-shell { background: #111827; color: #e5e7eb; }
+  .safe-start-card { border-color: #374151; background: #1f2937; box-shadow: none; }
+  .safe-start-header p, .safe-start-section p, .safe-start-guarantee { color: #aeb8c7; }
+  .safe-start-section { border-color: #3f4a5a; }
+  .safe-start-facts { border-color: #3f4a5a; background: #3f4a5a; }
+  .safe-start-facts div { background: #253143; }
+  .safe-start-facts dt { color: #9ca3af; }
+  .safe-start-shell button { border-color: #596579; background: #253143; color: #e5e7eb; }
+  .safe-start-shell button:hover { background: #334155; }
+  .safe-start-shell .safe-start-primary { border-color: #3b82f6; background: #2563eb; color: #fff; }
+}
+
+@media (max-width: 560px) {
+  .safe-start-shell { padding: 16px 10px; }
+  .safe-start-card { padding: 20px 15px; }
+  .safe-start-facts div { grid-template-columns: 1fr; gap: 2px; }
+}

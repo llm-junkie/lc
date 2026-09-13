@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LLM Client",
+  "version": "1.0.0",
+  "identifier": "llm-client.llm-junkie",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LC",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 432,
+        "minHeight": 304,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "dragDropEnabled": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": ["nsis", "msi", "deb", "appimage", "rpm", "app", "dmg"],
+    "license": "Apache-2.0",
+    "licenseFile": "../LICENSE",
+    "resources": [
+      "resources/models-cache.json",
+      "resources/spine-builder.html",
+      "resources/LICENSE",
+      "resources/NOTICE"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "LC — LLM Client",
+    "longDescription": "A local workbench for supervised, tool-assisted work with LLM models.",
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.0-0 | libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ]
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "Blaze",
+  "version": 1,
+  "mode": "spine",
+  "base": "dark",
+  "codeTheme": "vsc-dark-plus",
+  "spine": {
+    "--bg": "#0f0905",
+    "--bg-elev-1": "#19100b",
+    "--bg-elev-2": "#211712",
+    "--bg-elev-3": "#2a1f18",
+    "--accent": "#f58a32",
+    "--text": "#dedede",
+    "--accent-soft": "rgba(245, 138, 50, 0.16)",
+    "--user-bubble-gradient": "linear-gradient(135deg, rgba(255, 187, 0, 0.18) 0%, rgba(255, 187, 0, 0.12) 100%)",
+    "--code-block-bg": "#1e1e1e",
+    "--code-block-fg": "#d4d4d4"
+  }
+}

@@ -1,0 +1,245 @@
+name: Build artifacts
+
+# The heavy workflow. It runs the source checks and the full test suite on all
+# three platforms, then builds installers + portable executables and exposes
+# them as downloadable workflow artifacts. Unlike release.yml this NEVER
+# creates or publishes a GitHub Release.
+#
+# This is the gate to run before you tag. release.yml is deliberately light and
+# runs no tests, so whatever passes here is what a release rests on.
+#
+# The build matrix waits on both check jobs. If you want binaries out of a tree
+# with a known-failing test, drop `needs:` on the build job for that run rather
+# than weakening the gate.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Platform-neutral source gates. One Linux runner, and it fails before the
+  # build matrix spends up to 90 minutes per platform.
+  checks:
+    name: Source checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      # licenses:check shells out to `cargo metadata --locked`, which resolves
+      # the graph without compiling — same as the CI licensing job, which needs
+      # no platform build dependencies either.
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.98.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check documentation sync
+        run: npm run check:docs-sync
+
+      - name: Check relative import extensions
+        run: npm run check:imports
+
+      - name: Check test registry
+        run: npm run check:tests
+
+      - name: Verify releasable dependency licenses
+        run: npm run licenses:check
+
+      - name: Lint
+        run: npm run lint
+
+  # The full suite on every platform LC ships to. The Rust side carries 35
+  # Windows-gated blocks and 9 Unix-gated blocks that a Linux-only `cargo test`
+  # never compiles, so a single-platform run proves much less than it looks.
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.98.1
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-downloads-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test frontend
+        run: npm test
+
+      - name: Test Rust
+        run: npm run test:rust
+
+  build:
+    name: ${{ matrix.name }}
+    needs: [checks, test]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            platform: ubuntu-22.04
+            args: --bundles deb,appimage,rpm
+            rust-targets: ''
+            # No portable zip on Linux — the AppImage is the portable format
+            # (the raw binary needs system WebKitGTK and isn't self-contained).
+          - name: windows-x64
+            platform: windows-latest
+            # No `portable` bundle target in @tauri-apps/cli 2.11.4 — the
+            # runnable raw exe (target/release/llm-client.exe) is packaged into
+            # a portable zip by the archive steps below.
+            args: --bundles nsis,msi
+            rust-targets: ''
+            portable-platform: windows
+            portable-arch: x64
+          - name: macos-aarch64
+            platform: macos-latest
+            args: --target aarch64-apple-darwin --bundles app,dmg
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            rust-triple: aarch64-apple-darwin
+            # Match tauri-action's asset naming: darwin_aarch64
+            portable-platform: darwin
+            portable-arch: aarch64
+          - name: macos-x86_64
+            platform: macos-latest
+            args: --target x86_64-apple-darwin --bundles app,dmg
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            rust-triple: x86_64-apple-darwin
+            # Match tauri-action's asset naming: darwin_x64
+            portable-platform: darwin
+            portable-arch: x64
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-downloads-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils rpm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Prepare production frontend and legal artifacts
+        run: npm run release:prepare
+
+      # Build with the Tauri CLI directly (no tauri-action) so no GitHub
+      # Release is created or updated. Bundles land in
+      # src-tauri/target/<triple>/release/bundle (or .../target/release/bundle
+      # when no --target is used).
+      - name: Build installers and portable executables
+        run: npx tauri build --config src-tauri/tauri.release.conf.json ${{ matrix.args }} -- --locked
+
+      - name: Resolve app version
+        id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Portable single-file archives (no release involvement):
+      #   Windows -> zip of the raw binary
+      #   macOS   -> zip of the .app bundle (a bare macho binary is NOT
+      #              runnable; the .app bundle is the portable unit there)
+      #   Linux   -> no zip; the AppImage is the portable format
+      - name: Create portable archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path portable | Out-Null
+          Compress-Archive -Path src-tauri/target/release/llm-client.exe -DestinationPath "portable/lc_${{ steps.version.outputs.version }}_${{ matrix.portable-platform }}_${{ matrix.portable-arch }}-portable.zip"
+
+      - name: Create portable archive (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/portable"
+          cd "src-tauri/target/${{ matrix.rust-triple }}/release/bundle/macos"
+          zip -r "$GITHUB_WORKSPACE/portable/lc_${{ steps.version.outputs.version }}_${{ matrix.portable-platform }}_${{ matrix.portable-arch }}-portable.zip" "LLM Client.app"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ${{ matrix.name }}
+          # Installers/bundles live in target/{release,<triple>/release}/bundle,
+          # the raw binaries directly in target/release/ (exact names — NOT a
+          # `llm-client*` glob, which would also pull in llm-client.d), and the
+          # portable zips in portable/.
+          path: |
+            src-tauri/target/release/bundle
+            src-tauri/target/*/release/bundle
+            src-tauri/target/release/llm-client.exe
+            src-tauri/target/*/release/llm-client.exe
+            src-tauri/target/release/llm-client
+            src-tauri/target/*/release/llm-client
+            portable/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en" data-builder-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spine Theme Builder</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     Builder chrome tokens. The builder's own skin — deliberately
+     NOT the tokens being authored, so a broken spine can never make
+     the editor unusable. Light values below in one override block.
+     ═══════════════════════════════════════════════════════════════ */
+  :root {
+    --ui-bg:        #16161c;
+    --ui-panel:     #131318;
+    --ui-card:      #1a1a20;
+    --ui-input:     #18181b;
+    --ui-raised:    #1f1f23;
+    --ui-hover:     #27272a;
+    --ui-border:    #2a2a30;
+    --ui-border-2:  #3a3a42;
+    --ui-text:      #fafafa;
+    --ui-text-2:    #a1a1aa;
+    --ui-text-3:    #71717a;
+    --ui-accent:    #818cf8;
+    --ui-accent-hi: #a5b4fc;
+    --ui-error:     #f87171;
+    --ui-warn:      #fbbf24;
+    --ui-ok:        #4ade80;
+    --ui-scroll:    rgba(255,255,255,0.14);
+    --ui-shadow:    0 8px 32px rgba(0,0,0,0.5);
+    --r-sm: 6px; --r-md: 8px; --r-lg: 11px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-builder-theme="light"] {
+    --ui-bg:        #e4e4e8;
+    --ui-panel:     #ededf2;
+    --ui-card:      #f2f2f6;
+    --ui-input:     #fbfbff;
+    --ui-raised:    #fbfbff;
+    --ui-hover:     #e8e8ee;
+    --ui-border:    #d2d2d8;
+    --ui-border-2:  #bfbfc7;
+    --ui-text:      #18181b;
+    --ui-text-2:    #5e5e67;
+    --ui-text-3:    #8a8a93;
+    --ui-accent:    #4f46e5;
+    --ui-accent-hi: #4338ca;
+    --ui-error:     #dc2626;
+    --ui-warn:      #b45309;
+    --ui-ok:        #16a34a;
+    --ui-scroll:    rgba(0,0,0,0.18);
+    --ui-shadow:    0 8px 32px rgba(0,0,0,0.18);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    background: var(--ui-bg);
+    color: var(--ui-text-2);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: color-mix(in srgb, var(--ui-accent) 35%, transparent); }
+
+  /* Shared thin scrollbar */
+  .thin { scrollbar-width: thin; scrollbar-color: var(--ui-scroll) transparent; }
+  .thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .thin::-webkit-scrollbar-track { background: transparent; }
+  .thin::-webkit-scrollbar-thumb {
+    background: var(--ui-scroll);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .thin::-webkit-scrollbar-corner { background: transparent; }
+
+  /* ── Page header ──
+     Sticky, and the bar is full-bleed so the blur covers the whole width,
+     but its contents are capped to the layout width and centred. That is
+     what keeps Export beside the content column on a 2400px screen rather
+     than out in the window corner. */
+  .pagehead {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--ui-border);
+  }
+  .pagehead-inner {
+    display: flex;
+    align-items: center;
+    gap: 16px 20px;
+    flex-wrap: wrap;
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 13px 24px;
+  }
+  .pagehead-text { flex: 1 1 240px; min-width: 0; }
+  .pagehead h1 {
+    margin: 0 0 2px;
+    font-size: 17px;
+    font-weight: 650;
+    color: var(--ui-text);
+    letter-spacing: -0.01em;
+  }
+  .pagehead p { margin: 0; font-size: 12px; color: var(--ui-text-3); }
+  .pagehead-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ── Name + base ── */
+  .meta { display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field-name { flex: 1 1 220px; }
+  .field-name input { width: 100%; }
+  .field > label {
+    font-size: 10px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ui-text-3);
+    white-space: nowrap;
+  }
+  input[type="text"] {
+    background: var(--ui-input);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--r-md);
+    padding: 0 10px;
+    height: 30px;
+    font-size: 13px;
+    color: var(--ui-text);
+    font-family: inherit;
+    outline: none;
+    transition: border-color .12s;
+  }
+  input[type="text"]:focus-visible { border-color: var(--ui-accent); }
+
+  /* Segmented base switch */
+  .segmented {
+    display: inline-flex;
+    padding: 2px;
+    gap: 2px;
+    background: var(--ui-input);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--r-md);
+  }
+  .segmented button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--ui-text-3);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0 12px;
+    height: 24px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  .segmented button[aria-pressed="true"] { background: var(--ui-hover); color: var(--ui-text); }
+  .segmented button:hover:not([aria-pressed="true"]) { color: var(--ui-text-2); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 13px;
+    border-radius: var(--r-md);
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background .12s, border-color .12s, color .12s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--ui-accent); color: #fff; }
+  .btn-primary:hover { background: var(--ui-accent-hi); }
+  .btn-ghost { background: transparent; color: var(--ui-text-2); border-color: var(--ui-border); }
+  .btn-ghost:hover { background: var(--ui-hover); color: var(--ui-text); }
+  .btn:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+  .btn .count {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.22);
+  }
+
+  /* ── Layout ── */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 392px;
+    gap: 20px;
+    align-items: start;
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 20px 24px 0;
+  }
+  /* The page's tail space lives on the editor, not on .layout. A sticky
+     item can only travel within its own grid area, so any scrollable space
+     below the grid is height the rail cannot follow — it would bottom out
+     and slide under the header at the end of the scroll. */
+  .editor {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    padding-bottom: 64px;
+  }
+
+  /* ── Cards / sections ── */
+  .card {
+    background: var(--ui-card);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--r-lg);
+    padding: 14px 16px 16px;
+  }
+  .card h2 {
+    margin: 0 0 3px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ui-text-2);
+  }
+  .card > .hint {
+    margin: 0 0 12px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ui-text-3);
+  }
+  .card > .hint code { font-family: var(--mono); font-size: 11px; color: var(--ui-text-2); }
+  .card > .hint em { font-style: normal; color: var(--ui-text-2); }
+
+  /* ── Token rows ──
+     NB: class is `tok`, never `token` — Prism theme CSS (loaded from the
+     CDN for the code preview) owns `.token` and would bleed into these. */
+  .toks { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 18px; }
+  .tok { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .tok-swatch {
+    position: relative;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    padding: 0;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--ui-border-2);
+    cursor: pointer;
+    background-color: transparent;
+    background-image:
+      linear-gradient(45deg, var(--ui-border) 25%, transparent 25%, transparent 75%, var(--ui-border) 75%),
+      linear-gradient(45deg, var(--ui-border) 25%, transparent 25%, transparent 75%, var(--ui-border) 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 5px 5px;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .tok-swatch::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--fill, transparent);
+  }
+  .tok-swatch:hover { border-color: var(--ui-accent); }
+  .tok-swatch:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+  /* Derived (field empty): dashed edge signals "not written to the file". */
+  .tok.is-derived .tok-swatch { border-style: dashed; }
+  .tok > label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ui-text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .tok input[type="text"] {
+    flex: 0 0 auto;
+    width: 158px;
+    height: 26px;
+    padding: 0 7px;
+    font-size: 11px;
+    font-family: var(--mono);
+    border-radius: var(--r-sm);
+  }
+  .tok input::placeholder { color: var(--ui-text-3); opacity: .8; }
+  .tok.is-derived input { color: var(--ui-text-3); }
+
+  /* ── Elevation ladder ── */
+  .ladder { display: flex; gap: 3px; height: 44px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--ui-border); }
+  .ladder > div {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Code theme picker ── */
+  .picker { position: relative; }
+  .picker-trigger {
+    width: 100%;
+    height: 30px;
+    background: var(--ui-input);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--r-md);
+    padding: 0 28px 0 10px;
+    font-size: 12.5px;
+    font-family: var(--mono);
+    color: var(--ui-text);
+    cursor: pointer;
+    text-align: left;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .picker-trigger:focus-visible { border-color: var(--ui-accent); outline: none; }
+  .picker-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--ui-raised);
+    border: 1px solid var(--ui-border-2);
+    border-radius: var(--r-md);
+    box-shadow: var(--ui-shadow);
+    z-index: 50;
+    padding: 4px;
+  }
+  .picker-list.open { display: block; }
+  .picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 7px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--ui-text-2);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .picker-item .dot {
+    width: 12px; height: 12px;
+    flex-shrink: 0;
+    border-radius: 3px;
+    border: 1px solid var(--ui-border-2);
+  }
+  .picker-item[aria-selected="true"] { color: var(--ui-text); font-weight: 600; }
+  .picker-item.active { background: var(--ui-hover); color: var(--ui-text); }
+
+  .offline-note {
+    display: none;
+    margin-top: 10px;
+    padding: 7px 10px;
+    border-radius: var(--r-sm);
+    border: 1px solid color-mix(in srgb, var(--ui-warn) 40%, var(--ui-border));
+    background: color-mix(in srgb, var(--ui-warn) 10%, transparent);
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--ui-text-2);
+  }
+  .offline-note.show { display: block; }
+
+  /* ── Right rail ──
+     The actions ride at the top of the sticky rail so Export stays next to
+     the preview and within reach on a wide screen, instead of pinned to the
+     far corner of the window. */
+  /* --head-h is measured from the real header by JS, so the rail clears it
+     however the header wraps. */
+  .rail {
+    position: sticky;
+    top: calc(var(--head-h, 68px) + 20px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: calc(100vh - var(--head-h, 68px) - 40px);
+    min-width: 0;
+  }
+  .rail .card { display: flex; flex-direction: column; min-height: 0; }
+
+  /* ── App preview ── */
+  .preview-frame {
+    border-radius: var(--r-md);
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    display: flex;
+    height: 268px;
+    background: var(--p-bg);
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .p-sidebar {
+    width: 92px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--p-elev1);
+    border-right: 1px solid var(--p-border);
+    padding: 8px 7px;
+    gap: 5px;
+  }
+  .p-brand { font-size: 10px; font-weight: 700; color: var(--p-text); margin-bottom: 2px; }
+  .p-row {
+    padding: 4px 6px;
+    border-radius: 5px;
+    color: var(--p-text-muted);
+    font-size: 9.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .p-row.on { background: var(--p-elev3); color: var(--p-text); }
+  .p-sidebar .p-foot {
+    margin-top: auto;
+    padding-top: 6px;
+    border-top: 1px solid var(--p-border);
+    font-size: 9px;
+    color: var(--p-text-faint);
+  }
+  .p-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 8px; gap: 6px; }
+  .p-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+  .p-bubble-user {
+    align-self: flex-end;
+    max-width: 76%;
+    padding: 5px 9px;
+    border-radius: 10px;
+    background: var(--p-user-bubble);
+    border: 1px solid var(--p-user-bubble-border);
+    color: var(--p-text);
+  }
+  .p-bubble-bot {
+    align-self: flex-start;
+    width: 100%;
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: var(--p-elev2);
+    border: 1px solid var(--p-border);
+    color: var(--p-text);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .p-muted { color: var(--p-text-muted); }
+  .p-faint { color: var(--p-text-faint); font-size: 9.5px; }
+  .p-chip {
+    align-self: flex-start;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--p-accent-soft);
+    color: var(--p-accent);
+    font-size: 9px;
+    font-weight: 650;
+  }
+  /* Mirrors `.md pre` in src/index.css exactly: the class lives on <code>,
+     never on <pre> (see markdown.tsx `codePre`), so a Prism theme's
+     `pre[class*="language-"]` background does NOT apply here — same as
+     the app. The surface comes from the two --code-block-* tokens. */
+  .p-pre {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--p-code-bg);
+    color: var(--p-code-fg);
+    overflow: auto;
+    max-height: 84px;
+    font-size: 9.5px;
+    line-height: 1.5;
+  }
+  .p-pre code { font-family: var(--mono); font-size: inherit; line-height: inherit; white-space: pre; }
+  .p-composer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px 5px 9px;
+    border-radius: 9px;
+    background: var(--p-elev4);
+    border: 1px solid var(--p-border-strong);
+    color: var(--p-text-faint);
+  }
+  .p-send {
+    margin-left: auto;
+    padding: 2px 9px;
+    border-radius: 6px;
+    background: var(--p-accent);
+    color: #ffffff; /* resolver.ts pins --accent-fg to #ffffff */
+    font-size: 9.5px;
+    font-weight: 700;
+  }
+
+  /* ── Checks ── */
+  .checks { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+  .check {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 7px 9px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--ui-border);
+    background: var(--ui-input);
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ui-text-2);
+  }
+  .check .icon { flex-shrink: 0; font-size: 11px; line-height: 1.45; font-weight: 700; }
+  .check.error { border-color: color-mix(in srgb, var(--ui-error) 45%, var(--ui-border)); background: color-mix(in srgb, var(--ui-error) 9%, transparent); }
+  .check.error .icon { color: var(--ui-error); }
+  .check.warn  { border-color: color-mix(in srgb, var(--ui-warn) 45%, var(--ui-border)); background: color-mix(in srgb, var(--ui-warn) 9%, transparent); }
+  .check.warn .icon { color: var(--ui-warn); }
+  .check.ok .icon { color: var(--ui-ok); }
+  .check b { color: var(--ui-text); font-weight: 650; }
+  .check code { font-family: var(--mono); font-size: 10.5px; color: var(--ui-text); }
+  .check .body { min-width: 0; flex: 1; }
+  .check .fix {
+    margin-top: 5px;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--ui-text);
+    background: var(--ui-hover);
+    border: 1px solid var(--ui-border-2);
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .check .fix:hover { border-color: var(--ui-accent); }
+
+  /* ── JSON ── */
+  .json-card { flex: 1 1 auto; min-height: 96px; }
+  .json-card pre {
+    flex: 1;
+    margin: 0;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    line-height: 1.45;
+    color: var(--ui-text-2);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .json-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .json-head h2 { margin: 0; }
+  .json-head .spacer { flex: 1; }
+  .linkish {
+    appearance: none; border: 0; background: none; padding: 0;
+    font: inherit; font-size: 11px; color: var(--ui-text-3);
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+  }
+  .linkish:hover { color: var(--ui-text); }
+
+  /* ── Color popover ── */
+  .popover {
+    display: none;
+    position: fixed;
+    z-index: 999;
+    width: 212px;
+    background: var(--ui-raised);
+    border: 1px solid var(--ui-border-2);
+    border-radius: var(--r-lg);
+    padding: 10px;
+    box-shadow: var(--ui-shadow);
+    flex-direction: column;
+    gap: 8px;
+  }
+  .popover.open { display: flex; }
+  .popover input[type="color"] {
+    width: 100%;
+    height: 150px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+  .popover .row { display: flex; align-items: center; gap: 8px; }
+  .popover .row label { font-size: 11px; color: var(--ui-text-3); white-space: nowrap; }
+  .popover input[type="range"] { flex: 1; min-width: 0; accent-color: var(--ui-accent); }
+  .popover .val { font-size: 11px; font-family: var(--mono); color: var(--ui-text-2); min-width: 34px; text-align: right; }
+  .popover .hex { text-align: center; font-family: var(--mono); font-size: 12.5px; color: var(--ui-text); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  /* ── Responsive ──
+     The rail unsticks and drops below the editor before either column is
+     forced to shrink, so the page never scrolls horizontally. */
+  @media (max-width: 1120px) {
+    .pagehead-inner { max-width: 780px; }
+    /* stretch, not the grid's `start` — in a column flex container that
+       cross-axis value would size every row to its own content instead of
+       the column width. */
+    .layout { display: flex; flex-direction: column; align-items: stretch; gap: 16px; max-width: 780px; padding-bottom: 48px; }
+    /* Stacked, so the tail space goes back on the page — on the editor it
+       would open a gap in the middle of the column. */
+    .editor { padding-bottom: 0; }
+    /* Dissolve the rail box so its cards become layout items with the same
+       gap as the editor, and drop its sticky/height constraints. */
+    .rail { display: contents; }
+    .json-card pre { max-height: 220px; }
+  }
+  @media (max-width: 620px) {
+    .pagehead-inner { padding: 10px 14px; gap: 10px 14px; }
+    /* The strapline is the first thing to go — a sticky bar this tall would
+       eat too much of a short viewport. */
+    .pagehead-text p { display: none; }
+    .pagehead h1 { font-size: 15px; margin: 0; }
+    .pagehead-text { flex: 1 1 auto; }
+    .pagehead-actions { flex: 1 1 100%; }
+    .pagehead-actions .btn { flex: 1 1 0; justify-content: center; padding: 0 8px; }
+    .layout { padding: 16px 14px 48px; }
+    .toks { grid-template-columns: 1fr; }
+    .tok input[type="text"] { flex: 1 1 auto; width: auto; min-width: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+<!-- Prism core + grammars. Optional: if the CDN is unreachable (offline, or a
+     packaged desktop build with no network) the builder still works — the code
+     preview falls back to plain text and a notice appears. Token values and
+     export are never affected. -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js"></script>
+</head>
+<body>
+
+<header class="pagehead">
+  <div class="pagehead-inner">
+    <div class="pagehead-text">
+      <h1>Spine Theme Builder</h1>
+      <p>Six required tokens; the rest is derived. Preview mirrors how LC resolves them.</p>
+    </div>
+    <div class="pagehead-actions">
+      <button class="btn btn-ghost" id="loadBtn">Load JSON…</button>
+      <button class="btn btn-ghost" id="resetBtn">Reset</button>
+      <button class="btn btn-primary" id="exportBtn">Export<span class="count" id="exportCount" hidden></span></button>
+      <input type="file" id="loadInput" accept=".json,application/json" class="sr-only">
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ═══════════ Editor column ═══════════ -->
+  <div class="editor">
+
+    <section class="card">
+      <h2>Theme</h2>
+      <p class="hint">The base decides which built-in palette every token you leave empty inherits from.</p>
+      <div class="meta">
+        <div class="field field-name">
+          <label for="name">Name</label>
+          <input id="name" type="text" value="My Theme" placeholder="e.g. Midnight">
+        </div>
+        <div class="field">
+          <label id="baseLabel">Base</label>
+          <div class="segmented" role="group" aria-labelledby="baseLabel">
+            <button type="button" id="baseDark" aria-pressed="true">Dark</button>
+            <button type="button" id="baseLight" aria-pressed="false">Light</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Elevation ladder</h2>
+      <p class="hint">Each step must be brighter than the one before it, in both bases. Invert it and every raised surface reads as sunken.</p>
+      <div class="ladder" id="ladder"></div>
+    </section>
+
+    <section class="card">
+      <h2>Required tokens</h2>
+      <p class="hint">Written to the file verbatim. Use 6-digit hex — LC's resolver only parses <code>#rrggbb</code> when deriving the rest.</p>
+      <div class="toks" id="requiredTokens"></div>
+    </section>
+
+    <section class="card">
+      <h2>Optional tokens</h2>
+      <p class="hint">Left empty, each is computed from a required token. The greyed value is what LC will derive — type to pin it instead.</p>
+      <div class="toks" id="optionalTokens"></div>
+    </section>
+
+    <section class="card">
+      <h2>Extended tokens</h2>
+      <p class="hint">Left empty, these fall back to the base theme's <em>indigo</em> defaults — they do not follow your accent. Set them for any non-indigo theme.</p>
+      <div class="toks" id="extendedTokens"></div>
+    </section>
+
+    <section class="card">
+      <h2>Code theme</h2>
+      <p class="hint">Picks the Prism grammar colors and fills the two code-block tokens with that theme's real surface colors.</p>
+
+      <div class="picker">
+        <button class="picker-trigger" id="pickerTrigger" type="button"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox"
+                aria-controls="pickerList">one-dark</button>
+        <div class="picker-list thin" id="pickerList" role="listbox" aria-label="Code theme"></div>
+      </div>
+
+      <div class="offline-note" id="offlineNote">
+        Prism could not be loaded from the CDN, so the code preview is unhighlighted.
+        Everything else — including the code-block colors below — is unaffected.
+      </div>
+
+      <div class="toks" id="codeBlockTokens" style="margin-top:12px"></div>
+    </section>
+
+  </div>
+
+  <!-- ═══════════ Preview rail ═══════════ -->
+  <aside class="rail">
+
+    <section class="card">
+      <h2>Preview</h2>
+      <p class="hint">Rendered with the tokens LC will actually resolve, derivations included.</p>
+      <div class="preview-frame" id="appPreview">
+        <div class="p-sidebar">
+          <div class="p-brand">LC</div>
+          <div class="p-row on">Theme spine</div>
+          <div class="p-row">Elevation</div>
+          <div class="p-row">Contrast pass</div>
+          <div class="p-foot">Settings</div>
+        </div>
+        <div class="p-main">
+          <div class="p-scroll thin">
+            <div class="p-bubble-user">Does this ladder read as raised?</div>
+            <div class="p-bubble-bot">
+              <span class="p-chip">reasoning</span>
+              <div>Primary text on an elevated bubble.</div>
+              <div class="p-muted">Muted text — captions and secondary labels.</div>
+              <pre class="p-pre thin"><code class="language-ts" id="previewCode"></code></pre>
+              <div class="p-faint">Faint text — timestamps, token counts.</div>
+            </div>
+          </div>
+          <div class="p-composer">
+            <span>Message…</span>
+            <span class="p-send">Send</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 id="checksHeading">Checks</h2>
+      <div class="checks thin" id="checks" role="status" aria-labelledby="checksHeading"></div>
+    </section>
+
+    <section class="card json-card">
+      <div class="json-head">
+        <h2>Theme file</h2>
+        <div class="spacer"></div>
+        <button class="linkish" id="copyBtn">Copy</button>
+      </div>
+      <pre class="thin" id="jsonOut"></pre>
+    </section>
+
+  </aside>
+</main>
+
+<!-- Code sample. type="text/plain" keeps the indentation verbatim. -->
+<script id="codeSampleSrc" type="text/plain">export function resolveSpine(spine, base) {
+  const glass = { ...BUILTIN[base] };
+  for (const [k, v] of Object.entries(spine)) {
+    glass[k] = v; // override base
+  }
+  // border = elev-1 shifted toward the page floor
+  return { glass, solid: computeSolid(glass, base) };
+}</script>
+
+<!-- Color picker popover -->
+<div class="popover" id="popover" role="dialog" aria-label="Pick color">
+  <input type="color" id="popColor" value="#000000" aria-label="Color">
+  <div class="hex" id="popHex">#000000</div>
+  <div class="row">
+    <label for="popAlpha">Alpha</label>
+    <input type="range" id="popAlpha" min="0" max="100" value="100">
+    <span class="val" id="popAlphaVal">100%</span>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+//  Token definitions
+// ═══════════════════════════════════════════════════════════════
+
+var DEFAULTS = {
+  dark: {
+    '--bg':        '#0d0d10',
+    '--bg-elev-1': '#18181b',
+    '--bg-elev-2': '#1f1f23',
+    '--bg-elev-3': '#27272a',
+    '--accent':    '#818cf8',
+    '--text':      '#fafafa',
+  },
+  light: {
+    '--bg':        '#e4e4e8',
+    '--bg-elev-1': '#ededf2',
+    '--bg-elev-2': '#f5f5f9',
+    '--bg-elev-3': '#fbfbff',
+    '--accent':    '#4f46e5',
+    '--text':      '#18181b',
+    // Pinned, not derived. Against a bright elev-1 the derivation
+    // (elev-1 shifted -16) lands near 1.05 against the page — the
+    // built-in light theme sets both of these explicitly for that reason.
+    '--border':        '#d6d6d6',
+    '--border-strong': '#c3c3c3',
+  },
+};
+
+/* Built-in --border, for the "is your border visible enough" check.
+   Mirrors src/themes/builtin.ts. */
+var BUILTIN_BORDER = { dark: '#33333a', light: '#d6d6d6' };
+
+var REQUIRED = [
+  { key: '--bg',        label: 'bg (page floor)' },
+  { key: '--bg-elev-1', label: 'bg-elev-1 (sidebar)' },
+  { key: '--bg-elev-2', label: 'bg-elev-2 (bubbles)' },
+  { key: '--bg-elev-3', label: 'bg-elev-3 (hover)' },
+  { key: '--accent',    label: 'accent' },
+  { key: '--text',      label: 'text (primary)' },
+];
+
+var OPTIONAL = [
+  { key: '--text-muted',    label: 'text-muted' },
+  { key: '--text-faint',    label: 'text-faint' },
+  { key: '--border',        label: 'border' },
+  { key: '--border-strong', label: 'border-strong' },
+];
+
+var EXTENDED = [
+  { key: '--accent-hover',         label: 'accent-hover' },
+  { key: '--accent-soft',          label: 'accent-soft' },
+  { key: '--user-bubble-gradient', label: 'user-bubble (pick 1 color)' },
+  { key: '--user-bubble-border',   label: 'user-bubble-border' },
+];
+
+var CODE_BLOCK = [
+  { key: '--code-block-bg', label: 'code-block-bg' },
+  { key: '--code-block-fg', label: 'code-block-fg' },
+];
+
+var ALL = REQUIRED.concat(OPTIONAL, EXTENDED, CODE_BLOCK);
+
+// ═══════════════════════════════════════════════════════════════
+//  Code theme → (block background, block foreground)
+//
+//  Measured from the shipped prism-themes@1.9.0 CSS by reading the
+//  computed style of the exact markup LC renders — NOT transcribed from
+//  the theme docs, which disagree with the CSS for 20 of these 36.
+//  Notable traps this table now gets right:
+//    · coldark-cold's bg/fg are the reverse of what its name suggests
+//    · `github` maps to prism-ghcolors.css, whose #f8f8f8 is the INLINE
+//      code background; the block is plain white
+//    · synthwave84 paints a gradient, so the 75% stop stands in for it
+//  Re-measure with theme/spine-builder.html devtools if the dep bumps.
+// ═══════════════════════════════════════════════════════════════
+
+var CODE_THEME_COLORS = {
+  'one-dark':                        ['#282c34', '#abb2bf'],
+  'one-light':                       ['#fafafa', '#383a42'],
+  'a11y-dark':                       ['#2b2b2b', '#f8f8f2'],
+  'atom-dark':                       ['#1d1f21', '#c5c8c6'],
+  'base16-ateliersulphurpool.light': ['#f5f7ff', '#5e6687'],
+  'cb':                              ['#222222', '#ffffff'],
+  'coldark-cold':                    ['#e3eaf2', '#111b27'],
+  'coldark-dark':                    ['#111b27', '#e3eaf2'],
+  'coy-without-shadows':             ['#fdfdfd', '#000000'],
+  'darcula':                         ['#2b2b2b', '#a9b7c6'],
+  'dracula':                         ['#282a36', '#f8f8f2'],
+  'duotone-dark':                    ['#2a2734', '#9a86fd'],
+  'duotone-earth':                   ['#322d29', '#88786d'],
+  'duotone-forest':                  ['#2a2d2a', '#687d68'],
+  'duotone-light':                   ['#faf8f5', '#728fcb'],
+  'duotone-sea':                     ['#1d262f', '#57718e'],
+  'duotone-space':                   ['#24242e', '#767693'],
+  'github':                          ['#ffffff', '#393a34'],
+  'gruvbox-dark':                    ['#1d2021', '#ebdbb2'],
+  'gruvbox-light':                   ['#f9f5d7', '#3c3836'],
+  'holi-theme':                      ['#030314', '#d6e7ff'],
+  'hopscotch':                       ['#322931', '#b9b5b8'],
+  'lucario':                         ['#263e52', '#f8f8f2'],
+  'material-dark':                   ['#2f2f2f', '#eeeeee'],
+  'material-light':                  ['#fafafa', '#90a4ae'],
+  'material-oceanic':                ['#263238', '#c3cee3'],
+  'night-owl':                       ['#011627', '#d6deeb'],
+  'nord':                            ['#2e3440', '#f8f8f2'],
+  'pojoaque':                        ['#181914', '#dccf8f'],
+  'shades-of-purple':                ['#1e1e3f', '#9efeff'],
+  'solarized-dark-atom':             ['#002b36', '#839496'],
+  'synthwave84':                     ['#2a2139', '#f92aad'],
+  'vs':                              ['#ffffff', '#393a34'],
+  'vsc-dark-plus':                   ['#1e1e1e', '#d4d4d4'],
+  'xonokai':                         ['#2a2a2a', '#76d9e6'],
+  'z-touch':                         ['#0a143c', '#22da17'],
+};
+
+var CODE_THEMES = Object.keys(CODE_THEME_COLORS);
+
+/* prism-themes filenames that differ from the CodeTheme id. */
+var CSS_FILE = { 'github': 'ghcolors' };
+var PRISM_CDN = 'https://cdn.jsdelivr.net/npm/prism-themes@1.9.0/themes/prism-';
+
+// ═══════════════════════════════════════════════════════════════
+//  Color math — mirrors src/themes/resolver.ts. Keep in lockstep;
+//  drift here means the preview lies about what LC will render.
+// ═══════════════════════════════════════════════════════════════
+
+function parseHex(hex) {
+  var m = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(String(hex).trim());
+  if (!m) return null;
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+
+function toHex(r, g, b) {
+  return '#' + [r, g, b].map(function (v) {
+    return Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  }).join('');
+}
+
+function shiftHex(hex, offset) {
+  var c = parseHex(hex);
+  if (!c) return hex;
+  return toHex(c.r + offset, c.g + offset, c.b + offset);
+}
+
+function towardWhite(hex, ratio) {
+  var c = parseHex(hex);
+  if (!c) return hex;
+  var l = function (a) { return a + (255 - a) * ratio; };
+  return toHex(l(c.r), l(c.g), l(c.b));
+}
+
+/** Relative luminance (WCAG 2.1). Returns null for non-hex values. */
+function luminance(hex) {
+  var c = parseHex(hex);
+  if (!c) return null;
+  var f = function (v) {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+}
+
+/** WCAG contrast ratio, or null if either side is not plain hex. */
+function contrast(a, b) {
+  var la = luminance(a), lb = luminance(b);
+  if (la === null || lb === null) return null;
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+function rgbaOf(hex, alpha) {
+  var c = parseHex(hex);
+  if (!c) return hex;
+  return 'rgba(' + c.r + ', ' + c.g + ', ' + c.b + ', ' + alpha + ')';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════════════════
+
+var STORAGE_KEY = 'lc.spine-builder.draft.v1';
+
+var state = {
+  name: 'My Theme',
+  base: 'dark',
+  codeTheme: 'one-dark',
+  values: {},          // key → raw string ('' means "derive it")
+  codeFieldsDirty: false,
+  // Spine keys this builder has no field for. A spine may legally override
+  // ANY glass token, so they are carried through to export untouched
+  // rather than dropped on a load/save round trip.
+  passthrough: {},
+};
+
+var inputs = {};       // key → <input>
+var rows = {};         // key → row element
+
+// ═══════════════════════════════════════════════════════════════
+//  Derivation — what LC computes for the tokens you leave empty.
+//  Source of truth: resolveSpine() in src/themes/resolver.ts.
+// ═══════════════════════════════════════════════════════════════
+
+function derive() {
+  var v = state.values;
+  var isDark = state.base === 'dark';
+  var pick = function (k) { return (v[k] || '').trim(); };
+
+  var d = {};
+  ['--bg', '--bg-elev-1', '--bg-elev-2', '--bg-elev-3', '--accent', '--text'].forEach(function (k) {
+    d[k] = pick(k) || DEFAULTS[state.base][k];
+  });
+
+  d['--text-muted'] = pick('--text-muted') ||
+    (isDark ? shiftHex(d['--text'], -60) : shiftHex(d['--text'], 60));
+  d['--text-faint'] = pick('--text-faint') ||
+    (isDark ? shiftHex(d['--text-muted'], -40) : shiftHex(d['--text-muted'], 40));
+  d['--border'] = pick('--border') ||
+    (isDark ? shiftHex(d['--bg-elev-1'], 20) : shiftHex(d['--bg-elev-1'], -16));
+  d['--border-strong'] = pick('--border-strong') ||
+    (isDark ? shiftHex(d['--border'], 12) : shiftHex(d['--border'], -8));
+
+  d['--accent-hover'] = pick('--accent-hover') ||
+    (isDark ? towardWhite(d['--accent'], 0.15) : shiftHex(d['--accent'], -8));
+
+  // Indigo, regardless of --accent. resolver.ts hardcodes these.
+  d['--accent-soft'] = pick('--accent-soft') ||
+    (isDark ? 'rgba(129, 140, 248, 0.16)' : 'rgba(79, 70, 229, 0.12)');
+  d['--user-bubble-gradient'] = pick('--user-bubble-gradient') ||
+    (isDark
+      ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(139, 92, 246, 0.12) 100%)'
+      : 'linear-gradient(135deg, rgba(99, 102, 241, 0.10) 0%, rgba(139, 92, 246, 0.08) 100%)');
+  d['--user-bubble-border'] = pick('--user-bubble-border') ||
+    (isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.2)');
+
+  // Dark elev-4 is string concatenation in the resolver, so it only works
+  // when elev-1 is 6-digit hex — the check below reports that case.
+  d['--bg-elev-4'] = isDark
+    ? (parseHex(d['--bg-elev-1']) ? d['--bg-elev-1'] + 'd7' : d['--bg-elev-1'])
+    : 'rgba(255, 255, 255, 0.76)';
+
+  var ct = CODE_THEME_COLORS[state.codeTheme] || CODE_THEME_COLORS['one-dark'];
+  d['--code-block-bg'] = pick('--code-block-bg') || ct[0];
+  d['--code-block-fg'] = pick('--code-block-fg') || ct[1];
+
+  return d;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Token rows
+// ═══════════════════════════════════════════════════════════════
+
+function buildRows(containerId, defs) {
+  var container = document.getElementById(containerId);
+  container.textContent = '';
+
+  defs.forEach(function (t) {
+    var row = document.createElement('div');
+    row.className = 'tok';
+
+    var swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'tok-swatch';
+    swatch.setAttribute('aria-label', 'Pick color for ' + t.key);
+    swatch.title = 'Pick a color';
+
+    var label = document.createElement('label');
+    label.setAttribute('for', t.key);
+    label.title = t.key;
+    label.textContent = t.label;
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = t.key;
+    input.spellcheck = false;
+    input.autocomplete = 'off';
+
+    row.append(swatch, label, input);
+    container.appendChild(row);
+
+    inputs[t.key] = input;
+    rows[t.key] = row;
+
+    input.addEventListener('input', function () {
+      state.values[t.key] = input.value;
+      if (t.key === '--code-block-bg' || t.key === '--code-block-fg') {
+        state.codeFieldsDirty = true;
+      }
+      render();
+    });
+    swatch.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openPopover(swatch, t.key);
+    });
+  });
+}
+
+/** Push state → inputs, swatches and the derived placeholders. */
+function syncRows(d) {
+  ALL.forEach(function (t) {
+    var input = inputs[t.key];
+    var raw = (state.values[t.key] || '');
+    if (input.value !== raw) input.value = raw;
+
+    var derived = d[t.key] || '';
+    var isDerived = !raw.trim();
+    rows[t.key].classList.toggle('is-derived', isDerived);
+    input.placeholder = isDerived ? derived : '';
+    // Gradients can't paint a 26px chip usefully — show the first stop.
+    var fill = raw.trim() || derived;
+    rows[t.key].querySelector('.tok-swatch').style.setProperty('--fill', fill || 'transparent');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Elevation ladder + app preview
+// ═══════════════════════════════════════════════════════════════
+
+function renderLadder(d) {
+  var ladder = document.getElementById('ladder');
+  ladder.textContent = '';
+  [['bg', '--bg', 1], ['e1', '--bg-elev-1', 1], ['e2', '--bg-elev-2', 1],
+   ['e3', '--bg-elev-3', 1], ['accent', '--accent', 0.7]].forEach(function (entry) {
+    var cell = document.createElement('div');
+    cell.style.flex = String(entry[2]);
+    cell.style.background = d[entry[1]];
+    cell.style.color = entry[1] === '--accent' ? '#ffffff' : d['--text'];
+    cell.textContent = entry[0];
+    ladder.appendChild(cell);
+  });
+}
+
+function renderPreview(d) {
+  var el = document.getElementById('appPreview');
+  var map = {
+    '--p-bg': d['--bg'],
+    '--p-elev1': d['--bg-elev-1'],
+    '--p-elev2': d['--bg-elev-2'],
+    '--p-elev3': d['--bg-elev-3'],
+    '--p-elev4': d['--bg-elev-4'],
+    '--p-accent': d['--accent'],
+    '--p-accent-soft': d['--accent-soft'],
+    '--p-text': d['--text'],
+    '--p-text-muted': d['--text-muted'],
+    '--p-text-faint': d['--text-faint'],
+    '--p-border': d['--border'],
+    '--p-border-strong': d['--border-strong'],
+    '--p-user-bubble': d['--user-bubble-gradient'],
+    '--p-user-bubble-border': d['--user-bubble-border'],
+    '--p-code-bg': d['--code-block-bg'],
+    '--p-code-fg': d['--code-block-fg'],
+  };
+  Object.keys(map).forEach(function (k) { el.style.setProperty(k, map[k]); });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Checks
+//
+//  Every rule here encodes a documented failure mode from
+//  theme/theme-system.md — the spine contract, the light code-block
+//  requirement, and the derivations that silently pass values through.
+// ═══════════════════════════════════════════════════════════════
+
+function ratio(n) { return n === null ? '—' : n.toFixed(2) + ':1'; }
+
+function runChecks(d) {
+  var out = [];
+  var isDark = state.base === 'dark';
+  var add = function (level, title, detail, fix) {
+    out.push({ level: level, title: title, detail: detail, fix: fix });
+  };
+
+  /* 1 — Elevation must ascend in luminance. */
+  var ladder = ['--bg', '--bg-elev-1', '--bg-elev-2', '--bg-elev-3'];
+  var lums = ladder.map(function (k) { return luminance(d[k]); });
+  if (lums.indexOf(null) === -1) {
+    var bad = [];
+    for (var i = 1; i < lums.length; i++) {
+      if (lums[i] <= lums[i - 1]) bad.push(ladder[i].replace('--bg-elev-', 'elev-'));
+    }
+    if (bad.length) {
+      add('error', 'Elevation does not ascend',
+        bad.join(', ') + ' is not brighter than the step below it. Shadows will say "raised" while luminance says "sunken".');
+    } else {
+      add('ok', 'Elevation ascends', 'bg → elev-1 → elev-2 → elev-3 each gets brighter.');
+    }
+
+    /* 2 — Headroom at the top of the ladder. */
+    var spread = Math.abs(lums[3] - lums[0]);
+    if (spread < 0.012) {
+      add('warn', 'Elevation steps are nearly invisible',
+        'The whole ladder spans very little luminance, so elevated surfaces will not read as separate.');
+    }
+  }
+
+  /* 3 — Non-hex values in tokens that feed derivations. */
+  var needHex = [
+    { key: '--text', drives: 'text-muted / text-faint', when: !state.values['--text-muted'] || !state.values['--text-faint'] },
+    { key: '--bg-elev-1', drives: isDark ? 'border and bg-elev-4' : 'border', when: !state.values['--border'] || isDark },
+    { key: '--accent', drives: 'accent-hover', when: !state.values['--accent-hover'] },
+  ].filter(function (r) { return r.when && (state.values[r.key] || '').trim() && !parseHex(d[r.key]); });
+  if (needHex.length) {
+    add('error', 'Non-hex value feeds a derivation',
+      needHex.map(function (r) { return r.key; }).join(', ') +
+      ' must be 6-digit #rrggbb — the resolver passes anything else through unchanged, so ' +
+      needHex[0].drives + ' would come out wrong. Shorthand like #fff counts as invalid.');
+  }
+
+  /* 4 — Border must stay visible against the page.
+         Floor is 1.12, just under the built-in LIGHT ratio (1.146) — the
+         figure theme-system.md quotes as the sanity check. The built-in
+         DARK border is an outlier at 1.548; calibrating off that would
+         flag every shipped theme, which sits between 1.30 and 1.41. */
+  var bRatio = contrast(d['--border'], d['--bg']);
+  var refRatio = contrast(BUILTIN_BORDER[state.base], DEFAULTS[state.base]['--bg']);
+  if (bRatio !== null) {
+    if (bRatio < 1.12) {
+      add('warn', 'Border is faint against the page',
+        'border/bg is ' + ratio(bRatio) + ', below the ~1.15 the built-ins hold' +
+        (refRatio === null ? '' : ' (built-in ' + state.base + ' is ' + ratio(refRatio) + ')') +
+        '. Borders define toggles, inputs and card edges — set --border explicitly.',
+        { label: 'Use built-in border', key: '--border', value: BUILTIN_BORDER[state.base] });
+    } else {
+      add('ok', 'Border is visible', 'border/bg is ' + ratio(bRatio) + '.');
+    }
+  }
+
+  /* 5 — Text contrast on the bubble surface. */
+  var tRatio = contrast(d['--text'], d['--bg-elev-2']);
+  if (tRatio !== null) {
+    if (tRatio < 4.5) {
+      add('error', 'Primary text fails AA',
+        'text on bg-elev-2 is ' + ratio(tRatio) + '; 4.5:1 is the floor for body copy.');
+    } else {
+      add('ok', 'Primary text passes AA', 'text on bg-elev-2 is ' + ratio(tRatio) + '.');
+    }
+  }
+  var mRatio = contrast(d['--text-muted'], d['--bg-elev-2']);
+  if (mRatio !== null && mRatio < 3) {
+    add('warn', 'Muted text is hard to read',
+      'text-muted on bg-elev-2 is ' + ratio(mRatio) + '. The built-ins land near 5:1.');
+  }
+
+  /* 6 — --accent-fg is pinned to white by the resolver, so a pale accent
+         loses its button labels. Calibrated against the built-in accent for
+         this base rather than a WCAG floor: LC's own dark accent sits at
+         2.98:1, so an absolute threshold would flag every shipped theme. */
+  var aRatio = contrast('#ffffff', d['--accent']);
+  var aRef = contrast('#ffffff', DEFAULTS[state.base]['--accent']);
+  if (aRatio !== null && aRef !== null && aRatio < aRef * 0.7) {
+    add('warn', 'Accent is pale for white label text',
+      'LC pins --accent-fg to #ffffff for every custom theme. White on your accent is ' +
+      ratio(aRatio) + ' vs ' + ratio(aRef) + ' in the built-in ' + state.base +
+      ' theme, so primary buttons and the send control will read weaker than the app expects.');
+  }
+
+  /* 7 — Indigo defaults leaking into a non-indigo theme. */
+  var indigo = isDark ? '#818cf8' : '#4f46e5';
+  var ac = parseHex(d['--accent']), ic = parseHex(indigo);
+  if (ac && ic) {
+    var dist = Math.abs(ac.r - ic.r) + Math.abs(ac.g - ic.g) + Math.abs(ac.b - ic.b);
+    var unset = ['--accent-soft', '--user-bubble-gradient', '--user-bubble-border']
+      .filter(function (k) { return !(state.values[k] || '').trim(); });
+    if (dist > 90 && unset.length) {
+      add('warn', 'Accent-tinted surfaces will stay indigo',
+        unset.map(function (k) { return k.replace('--', ''); }).join(', ') +
+        ' fall back to the base theme\'s indigo — the resolver does not derive them from --accent.',
+        { label: 'Derive from accent', action: 'deriveAccentTints' });
+    }
+  }
+
+  /* 8 — A light spine must pin the code block. */
+  var pinnedBg = (state.values['--code-block-bg'] || '').trim();
+  var pinnedFg = (state.values['--code-block-fg'] || '').trim();
+  if (!isDark && (!pinnedBg || !pinnedFg)) {
+    add('error', 'Light theme needs the code block pinned',
+      'Both --code-block-* tokens default to github-dark in BOTH bases, so an unpinned light theme gets a dark code block.',
+      { label: 'Pin to ' + state.codeTheme, action: 'pinCodeBlock' });
+  } else if (pinnedBg && pinnedFg) {
+    var cRatio = contrast(d['--code-block-fg'], d['--code-block-bg']);
+    if (cRatio !== null && cRatio < 4.5) {
+      add('warn', 'Code block contrast is low',
+        'code-block-fg on code-block-bg is ' + ratio(cRatio) + '.');
+    } else {
+      add('ok', 'Code block pinned', d['--code-block-bg'] + ' / ' + d['--code-block-fg'] + '.');
+    }
+  }
+
+  /* 9 — Code surface should sit in the same world as the UI. */
+  var cbLum = luminance(d['--code-block-bg']);
+  if (cbLum !== null && lums[0] !== null) {
+    var uiIsDark = lums[0] < 0.18;
+    var codeIsDark = cbLum < 0.18;
+    if (uiIsDark !== codeIsDark) {
+      add('warn', 'Code block fights the UI',
+        'The interface is ' + (uiIsDark ? 'dark' : 'light') + ' but the code block is ' +
+        (codeIsDark ? 'dark' : 'light') + '. Pick a matching code theme, or repoint the two tokens.');
+    }
+  }
+
+  return out;
+}
+
+function renderChecks(list) {
+  var box = document.getElementById('checks');
+  box.textContent = '';
+  var problems = 0;
+
+  list.forEach(function (c) {
+    if (c.level !== 'ok') problems++;
+    var el = document.createElement('div');
+    el.className = 'check ' + c.level;
+
+    var icon = document.createElement('span');
+    icon.className = 'icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = c.level === 'error' ? '✕' : c.level === 'warn' ? '!' : '✓';
+
+    var body = document.createElement('div');
+    body.className = 'body';
+    var title = document.createElement('b');
+    title.textContent = c.title;
+    // Text nodes only — check details interpolate token values the author typed.
+    body.append(title, document.createTextNode(' — ' + c.detail));
+
+    if (c.fix) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'fix';
+      btn.textContent = c.fix.label;
+      btn.addEventListener('click', function () { applyFix(c.fix); });
+      body.appendChild(btn);
+    }
+
+    el.append(icon, body);
+    box.appendChild(el);
+  });
+
+  var badge = document.getElementById('exportCount');
+  badge.hidden = problems === 0;
+  badge.textContent = String(problems);
+}
+
+function applyFix(fix) {
+  if (fix.action === 'deriveAccentTints') {
+    var d = derive();
+    var accent = d['--accent'];
+    var isDark = state.base === 'dark';
+    setValue('--accent-soft', rgbaOf(accent, isDark ? 0.16 : 0.12));
+    setValue('--user-bubble-gradient',
+      'linear-gradient(135deg, ' + rgbaOf(accent, isDark ? 0.18 : 0.10) + ' 0%, ' +
+      rgbaOf(accent, isDark ? 0.12 : 0.08) + ' 100%)');
+    setValue('--user-bubble-border', rgbaOf(accent, isDark ? 0.15 : 0.2));
+  } else if (fix.action === 'pinCodeBlock') {
+    var c = CODE_THEME_COLORS[state.codeTheme];
+    if (c) { setValue('--code-block-bg', c[0]); setValue('--code-block-fg', c[1]); state.codeFieldsDirty = true; }
+  } else if (fix.key) {
+    setValue(fix.key, fix.value);
+  }
+  render();
+}
+
+function setValue(key, value) {
+  state.values[key] = value;
+  if (inputs[key]) inputs[key].value = value;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  JSON
+// ═══════════════════════════════════════════════════════════════
+
+function buildThemeFile() {
+  // Carried-through keys first, so an edited field always wins.
+  var spine = {};
+  Object.keys(state.passthrough).forEach(function (k) { spine[k] = state.passthrough[k]; });
+  ALL.forEach(function (t) {
+    var v = (state.values[t.key] || '').trim();
+    if (v) spine[t.key] = v;
+  });
+  return {
+    name: state.name || 'Untitled',
+    version: 1,
+    mode: 'spine',
+    base: state.base,
+    codeTheme: state.codeTheme,
+    spine: spine,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Render
+// ═══════════════════════════════════════════════════════════════
+
+function render() {
+  var d = derive();
+  syncRows(d);
+  renderLadder(d);
+  renderPreview(d);
+  renderChecks(runChecks(d));
+  document.getElementById('jsonOut').textContent = JSON.stringify(buildThemeFile(), null, 2);
+  saveDraft();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Draft persistence — a refresh should not cost you the theme.
+// ═══════════════════════════════════════════════════════════════
+
+var saveTimer = null;
+function saveDraft() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function () {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        name: state.name, base: state.base, codeTheme: state.codeTheme,
+        values: state.values, codeFieldsDirty: state.codeFieldsDirty,
+        passthrough: state.passthrough,
+      }));
+    } catch (_) { /* private mode, quota, file:// restrictions — non-fatal */ }
+  }, 250);
+}
+
+function loadDraft() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    var o = JSON.parse(raw);
+    if (!o || typeof o !== 'object' || !o.values) return false;
+    state.name = typeof o.name === 'string' ? o.name : state.name;
+    state.base = o.base === 'light' ? 'light' : 'dark';
+    state.codeTheme = CODE_THEME_COLORS[o.codeTheme] ? o.codeTheme : state.codeTheme;
+    state.codeFieldsDirty = !!o.codeFieldsDirty;
+    ALL.forEach(function (t) {
+      if (typeof o.values[t.key] === 'string') state.values[t.key] = o.values[t.key];
+    });
+    if (o.passthrough && typeof o.passthrough === 'object') {
+      Object.keys(o.passthrough).forEach(function (k) {
+        if (typeof o.passthrough[k] === 'string' && k.slice(0, 2) === '--') {
+          state.passthrough[k] = o.passthrough[k];
+        }
+      });
+    }
+    return true;
+  } catch (_) { return false; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Base
+// ═══════════════════════════════════════════════════════════════
+
+function isPristine() {
+  var defs = DEFAULTS[state.base];
+  return ALL.every(function (t) {
+    var v = (state.values[t.key] || '').trim();
+    if (!v) return true;
+    if (defs[t.key] && v === defs[t.key]) return true;
+    var c = CODE_THEME_COLORS[state.codeTheme];
+    if (c && t.key === '--code-block-bg' && v === c[0]) return true;
+    if (c && t.key === '--code-block-fg' && v === c[1]) return true;
+    return false;
+  });
+}
+
+function resetTo(base) {
+  state.base = base;
+  state.values = {};
+  state.passthrough = {};
+  state.codeFieldsDirty = false;
+  Object.keys(DEFAULTS[base]).forEach(function (k) { state.values[k] = DEFAULTS[base][k]; });
+  document.documentElement.setAttribute('data-builder-theme', base);
+  document.getElementById('baseDark').setAttribute('aria-pressed', String(base === 'dark'));
+  document.getElementById('baseLight').setAttribute('aria-pressed', String(base === 'light'));
+  commitCodeTheme(base === 'light' ? 'one-light' : 'one-dark');
+}
+
+function switchBase(base) {
+  if (base === state.base) return;
+  // The palette is base-specific, so switching necessarily rebuilds it.
+  if (!isPristine() && !confirm('Switching base resets every token to the ' + base + ' defaults. Continue?')) return;
+  resetTo(base);
+  render();
+}
+
+document.getElementById('baseDark').addEventListener('click', function () { switchBase('dark'); });
+document.getElementById('baseLight').addEventListener('click', function () { switchBase('light'); });
+document.getElementById('resetBtn').addEventListener('click', function () {
+  if (isPristine() || confirm('Reset every token to the ' + state.base + ' defaults?')) {
+    resetTo(state.base);
+    render();
+  }
+});
+
+document.getElementById('name').addEventListener('input', function () {
+  state.name = this.value;
+  render();
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  Code theme — Prism CSS loading + preview
+// ═══════════════════════════════════════════════════════════════
+
+var themeLink = null;
+var prismOK = typeof Prism !== 'undefined' && !!(Prism.languages && Prism.languages.ts);
+
+function loadPrismCSS(name) {
+  if (!themeLink) {
+    themeLink = document.createElement('link');
+    themeLink.rel = 'stylesheet';
+    document.head.appendChild(themeLink);
+  }
+  var href = PRISM_CDN + (CSS_FILE[name] || name) + '.css';
+  if (themeLink.href !== href) themeLink.href = href;
+}
+
+/**
+ * Show a code theme without committing it. Used for keyboard/hover
+ * browsing of the list; cancelling restores the committed one.
+ */
+function previewCodeTheme(name) {
+  loadPrismCSS(name);
+  document.getElementById('pickerTrigger').textContent = name;
+  var c = CODE_THEME_COLORS[name];
+  if (c && !state.codeFieldsDirty) {
+    state.values['--code-block-bg'] = c[0];
+    state.values['--code-block-fg'] = c[1];
+  }
+  var prev = state.codeTheme;
+  state.codeTheme = name;
+  render();
+  state.codeTheme = prev;
+}
+
+function commitCodeTheme(name) {
+  state.codeTheme = name;
+  loadPrismCSS(name);
+  document.getElementById('pickerTrigger').textContent = name;
+  var c = CODE_THEME_COLORS[name];
+  // Never clobber code-block colors the author typed by hand.
+  if (c && !state.codeFieldsDirty) {
+    state.values['--code-block-bg'] = c[0];
+    state.values['--code-block-fg'] = c[1];
+  }
+  Array.prototype.forEach.call(pickerList.children, function (el) {
+    el.setAttribute('aria-selected', String(el.dataset.value === name));
+  });
+  render();
+}
+
+function renderCodeSample() {
+  var src = document.getElementById('codeSampleSrc').textContent || '';
+  var target = document.getElementById('previewCode');
+  if (prismOK) {
+    target.innerHTML = Prism.highlight(src, Prism.languages.ts, 'ts');
+  } else {
+    target.textContent = src;
+    document.getElementById('offlineNote').classList.add('show');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Code-theme picker — a listbox with real keyboard support
+// ═══════════════════════════════════════════════════════════════
+
+var pickerTrigger = document.getElementById('pickerTrigger');
+var pickerList = document.getElementById('pickerList');
+var pickerOpen = false;
+var activeIdx = -1;
+var typeahead = '';
+var typeaheadTimer = null;
+
+CODE_THEMES.forEach(function (name, idx) {
+  var item = document.createElement('div');
+  item.className = 'picker-item';
+  item.id = 'picker-opt-' + idx;
+  item.setAttribute('role', 'option');
+  item.setAttribute('aria-selected', 'false');
+  item.dataset.value = name;
+
+  var dot = document.createElement('span');
+  dot.className = 'dot';
+  dot.style.background = CODE_THEME_COLORS[name][0];
+
+  var text = document.createElement('span');
+  text.textContent = name;
+
+  item.append(dot, text);
+  item.addEventListener('mouseenter', function () { setActive(idx, false); });
+  item.addEventListener('click', function () { commitCodeTheme(name); closePicker(false); });
+  pickerList.appendChild(item);
+});
+
+function setActive(idx, scroll) {
+  activeIdx = idx;
+  Array.prototype.forEach.call(pickerList.children, function (el, i) {
+    el.classList.toggle('active', i === idx);
+  });
+  var el = pickerList.children[idx];
+  if (!el) return;
+  pickerTrigger.setAttribute('aria-activedescendant', el.id);
+  if (scroll) el.scrollIntoView({ block: 'nearest' });
+  previewCodeTheme(el.dataset.value);
+}
+
+function openPicker() {
+  if (pickerOpen) return;
+  pickerOpen = true;
+  pickerList.classList.add('open');
+  pickerTrigger.setAttribute('aria-expanded', 'true');
+  setActive(Math.max(0, CODE_THEMES.indexOf(state.codeTheme)), true);
+}
+
+/** @param {boolean} revert - restore the committed theme (Esc / click-away). */
+function closePicker(revert) {
+  if (!pickerOpen) return;
+  pickerOpen = false;
+  pickerList.classList.remove('open');
+  pickerTrigger.setAttribute('aria-expanded', 'false');
+  pickerTrigger.removeAttribute('aria-activedescendant');
+  activeIdx = -1;
+  // Otherwise a quick reopen inherits the previous session's keystrokes.
+  clearTimeout(typeaheadTimer);
+  typeahead = '';
+  Array.prototype.forEach.call(pickerList.children, function (el) { el.classList.remove('active'); });
+  if (revert) commitCodeTheme(state.codeTheme);
+}
+
+pickerTrigger.addEventListener('click', function (e) {
+  e.stopPropagation();
+  if (pickerOpen) closePicker(true); else openPicker();
+});
+
+pickerTrigger.addEventListener('keydown', function (e) {
+  var last = CODE_THEMES.length - 1;
+  if (!pickerOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ')) {
+    e.preventDefault(); openPicker(); return;
+  }
+  if (!pickerOpen) return;
+
+  if (e.key === 'ArrowDown')      { e.preventDefault(); setActive(Math.min(last, activeIdx + 1), true); }
+  else if (e.key === 'ArrowUp')   { e.preventDefault(); setActive(Math.max(0, activeIdx - 1), true); }
+  else if (e.key === 'Home')      { e.preventDefault(); setActive(0, true); }
+  else if (e.key === 'End')       { e.preventDefault(); setActive(last, true); }
+  else if (e.key === 'PageDown')  { e.preventDefault(); setActive(Math.min(last, activeIdx + 8), true); }
+  else if (e.key === 'PageUp')    { e.preventDefault(); setActive(Math.max(0, activeIdx - 8), true); }
+  else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    var el = pickerList.children[activeIdx];
+    if (el) commitCodeTheme(el.dataset.value);
+    closePicker(false);
+  }
+  else if (e.key === 'Escape' || e.key === 'Tab') { closePicker(true); }
+  else if (e.key.length === 1 && /\S/.test(e.key)) {
+    clearTimeout(typeaheadTimer);
+    typeahead += e.key.toLowerCase();
+    typeaheadTimer = setTimeout(function () { typeahead = ''; }, 700);
+    var hit = CODE_THEMES.findIndex(function (n) { return n.toLowerCase().startsWith(typeahead); });
+    if (hit >= 0) setActive(hit, true);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  Color popover
+// ═══════════════════════════════════════════════════════════════
+
+var popover = document.getElementById('popover');
+var popColor = document.getElementById('popColor');
+var popHex = document.getElementById('popHex');
+var popAlpha = document.getElementById('popAlpha');
+var popAlphaVal = document.getElementById('popAlphaVal');
+var popKey = null;
+var popSwatch = null;
+
+/**
+ * Pull an editable hex+alpha out of whatever the field holds — a hex, an
+ * rgba(), or a gradient (whose first color stop stands in for the whole
+ * thing, matching how the gradient is regenerated on apply).
+ */
+function parseColor(raw) {
+  raw = (raw || '').trim();
+  var hex6 = /^#([0-9a-fA-F]{6})$/.exec(raw);
+  if (hex6) return { hex: '#' + hex6[1].toLowerCase(), alpha: 100 };
+  var hex3 = /^#([0-9a-fA-F]{3})$/.exec(raw);
+  if (hex3) {
+    var s = hex3[1];
+    return { hex: '#' + s[0] + s[0] + s[1] + s[1] + s[2] + s[2], alpha: 100 };
+  }
+  var m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:[,/]\s*([\d.]+))?\s*\)/.exec(raw);
+  if (m) {
+    return {
+      hex: toHex(+m[1], +m[2], +m[3]),
+      alpha: Math.round((m[4] === undefined ? 1 : parseFloat(m[4])) * 100),
+    };
+  }
+  return { hex: '#808080', alpha: 100 };
+}
+
+function colorOutput(hex, alpha) {
+  return alpha >= 100 ? hex : rgbaOf(hex, (alpha / 100).toFixed(2));
+}
+
+function openPopover(swatch, key) {
+  popKey = key;
+  popSwatch = swatch;
+  var raw = (state.values[key] || '').trim() || derive()[key] || '';
+  var p = parseColor(raw);
+  popColor.value = p.hex;
+  popAlpha.value = String(p.alpha);
+  popAlphaVal.textContent = p.alpha + '%';
+  popHex.textContent = p.hex;
+
+  // Alpha is meaningless for a gradient — its stops carry their own.
+  popAlpha.disabled = key === '--user-bubble-gradient';
+
+  popover.classList.add('open');
+  // Measure after it is displayed, then flip/clamp to stay on screen.
+  var r = swatch.getBoundingClientRect();
+  var pr = popover.getBoundingClientRect();
+  var top = r.bottom + 6;
+  if (top + pr.height > window.innerHeight - 8) top = Math.max(8, r.top - pr.height - 6);
+  var left = Math.min(r.left, window.innerWidth - pr.width - 8);
+  popover.style.top = top + 'px';
+  popover.style.left = Math.max(8, left) + 'px';
+  popColor.focus();
+}
+
+function applyColor() {
+  if (!popKey) return;
+  var hex = popColor.value;
+  var alpha = parseInt(popAlpha.value, 10);
+  popHex.textContent = hex;
+  popAlphaVal.textContent = alpha + '%';
+
+  var out;
+  if (popKey === '--user-bubble-gradient') {
+    // One picked color → the two-stop gradient LC expects.
+    var dk = state.base === 'dark';
+    out = 'linear-gradient(135deg, ' + colorOutput(hex, dk ? 18 : 10) + ' 0%, ' +
+          colorOutput(hex, dk ? 12 : 8) + ' 100%)';
+  } else {
+    out = colorOutput(hex, alpha);
+  }
+  setValue(popKey, out);
+  if (popKey === '--code-block-bg' || popKey === '--code-block-fg') state.codeFieldsDirty = true;
+  render();
+}
+
+popColor.addEventListener('input', applyColor);
+popAlpha.addEventListener('input', applyColor);
+
+function closePopover() {
+  popover.classList.remove('open');
+  popKey = null;
+  popSwatch = null;
+}
+
+document.addEventListener('click', function (e) {
+  if (popover.classList.contains('open') && !popover.contains(e.target) && e.target !== popSwatch) {
+    closePopover();
+  }
+  if (pickerOpen && !pickerList.contains(e.target) && e.target !== pickerTrigger) {
+    closePicker(true);
+  }
+});
+
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  if (popover.classList.contains('open')) { closePopover(); if (popSwatch) popSwatch.focus(); }
+  else if (pickerOpen) { closePicker(true); pickerTrigger.focus(); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  Export / copy / load
+// ═══════════════════════════════════════════════════════════════
+
+document.getElementById('exportBtn').addEventListener('click', function () {
+  var file = buildThemeFile();
+  var slug = (file.name || 'spine-theme').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  var now = new Date();
+  var timestamp = [
+    String(now.getFullYear()).padStart(4, '0'),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0')
+  ].join('-') + '-' + String(now.getHours()).padStart(2, '0')
+    + String(now.getMinutes()).padStart(2, '0');
+  var blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'lc-theme-' + slug + '-' + timestamp + '.spine.theme.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Firefox needs the URL alive until the download is picked up.
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+});
+
+document.getElementById('copyBtn').addEventListener('click', function () {
+  var btn = this;
+  var text = JSON.stringify(buildThemeFile(), null, 2);
+  var done = function (ok) {
+    btn.textContent = ok ? 'Copied' : 'Copy failed';
+    setTimeout(function () { btn.textContent = 'Copy'; }, 1400);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+  } else {
+    done(false);
+  }
+});
+
+var loadInput = document.getElementById('loadInput');
+document.getElementById('loadBtn').addEventListener('click', function () { loadInput.click(); });
+
+loadInput.addEventListener('change', function () {
+  var file = loadInput.files && loadInput.files[0];
+  loadInput.value = '';
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onerror = function () { alert('Could not read that file.'); };
+  reader.onload = function () {
+    var obj;
+    try {
+      obj = JSON.parse(String(reader.result));
+    } catch (err) {
+      alert('Not valid JSON:\n\n' + err.message);
+      return;
+    }
+    if (!obj || typeof obj !== 'object') { alert('That file is not a theme object.'); return; }
+
+    var tokens = obj.spine || obj.glass;
+    if (!tokens || typeof tokens !== 'object') {
+      alert('No "spine" (or "glass") token map found in that file.');
+      return;
+    }
+
+    resetTo(obj.base === 'light' ? 'light' : 'dark');
+    if (typeof obj.name === 'string' && obj.name.trim()) {
+      state.name = obj.name;
+      document.getElementById('name').value = obj.name;
+    }
+    // A file that pins the code block owns those fields from here on.
+    var ct = CODE_THEME_COLORS[obj.codeTheme] ? obj.codeTheme
+           : (state.base === 'light' ? 'one-light' : 'one-dark');
+    commitCodeTheme(ct);
+
+    var carried = [];
+    Object.keys(tokens).forEach(function (k) {
+      if (typeof tokens[k] !== 'string') return;
+      if (inputs[k]) { setValue(k, tokens[k]); return; }
+      // Not editable here, but still a legal spine override — keep it.
+      state.passthrough[k] = tokens[k];
+      carried.push(k);
+    });
+
+    var hadCodeBlock = typeof tokens['--code-block-bg'] === 'string'
+                    && typeof tokens['--code-block-fg'] === 'string';
+    if (typeof tokens['--code-block-bg'] === 'string' || typeof tokens['--code-block-fg'] === 'string') {
+      state.codeFieldsDirty = true;
+    }
+    render();
+
+    var notes = [];
+    if (state.base === 'light' && !hadCodeBlock) {
+      notes.push('This light theme did not pin --code-block-bg / --code-block-fg, so it would have\n' +
+                 'rendered a dark code block. They have been set to the ' + state.codeTheme + ' colors.');
+    }
+    if (carried.length) {
+      notes.push('These keys have no field here. They are kept as-is and will be re-exported:\n  ' +
+                 carried.join('\n  '));
+    }
+    if (notes.length) alert('Loaded.\n\n' + notes.join('\n\n'));
+  };
+  reader.readAsText(file);
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  Sticky header height → --head-h
+//  The rail sticks below the header, so it needs the header's real
+//  height — which changes when the action row wraps under the title.
+// ═══════════════════════════════════════════════════════════════
+
+var pagehead = document.querySelector('.pagehead');
+
+function syncHeadHeight() {
+  var h = Math.round(pagehead.getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--head-h', h + 'px');
+}
+
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(syncHeadHeight).observe(pagehead);
+} else {
+  window.addEventListener('resize', syncHeadHeight);
+}
+syncHeadHeight();
+
+// ═══════════════════════════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════════════════════════
+
+buildRows('requiredTokens', REQUIRED);
+buildRows('optionalTokens', OPTIONAL);
+buildRows('extendedTokens', EXTENDED);
+buildRows('codeBlockTokens', CODE_BLOCK);
+renderCodeSample();
+
+if (loadDraft()) {
+  document.documentElement.setAttribute('data-builder-theme', state.base);
+  document.getElementById('baseDark').setAttribute('aria-pressed', String(state.base === 'dark'));
+  document.getElementById('baseLight').setAttribute('aria-pressed', String(state.base === 'light'));
+  document.getElementById('name').value = state.name;
+  commitCodeTheme(state.codeTheme);
+} else {
+  resetTo('dark');
+}
+render();
+</script>
+</body>
+</html>

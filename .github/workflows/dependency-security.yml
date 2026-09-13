@@ -1,0 +1,103 @@
+name: Dependency security
+
+# Manual only. The automatic triggers below stay commented out on purpose —
+# run this workflow from the Actions tab. Note that the dependency-review job
+# only runs on pull_request events, so a manual run does the audit jobs only.
+on:
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - package.json
+  #     - package-lock.json
+  #     - .node-version
+  #     - src-tauri/Cargo.toml
+  #     - src-tauri/Cargo.lock
+  # schedule:
+  #   - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request' && github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+
+  npm-audit:
+    name: npm production audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      # The current Excalidraw graph contains a known upstream high-severity
+      # advisory with no non-breaking upgrade. npm still prints it here; CI
+      # blocks on critical advisories until that upstream chain is replaceable.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical
+
+  rust-audit:
+    name: RustSec audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: write
+      issues: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Audit Cargo.lock
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
+          # Accepted transitive informational advisories with no compatible
+          # replacement while LC uses Tauri 2:
+          # - RUSTSEC-2024-0411..0420: Tauri's GTK3 window/webview stack
+          # - RUSTSEC-2024-0370: GTK3's proc-macro support
+          # - RUSTSEC-2025-0075/0080/0081/0098/0100: tauri-utils -> urlpattern
+          # RUSTSEC-2024-0429 is glib unsoundness fixed in >=0.20. Tauri's
+          # GTK3 stack pins glib 0.18, but LC and its resolved dependencies
+          # have no call site for the affected Variant::array_iter_str API.
+          # Remove these exceptions when Tauri's GTK4 stack replaces them.
+          ignore: >-
+            RUSTSEC-2024-0370,
+            RUSTSEC-2024-0411,
+            RUSTSEC-2024-0412,
+            RUSTSEC-2024-0413,
+            RUSTSEC-2024-0414,
+            RUSTSEC-2024-0415,
+            RUSTSEC-2024-0416,
+            RUSTSEC-2024-0417,
+            RUSTSEC-2024-0418,
+            RUSTSEC-2024-0419,
+            RUSTSEC-2024-0420,
+            RUSTSEC-2024-0429,
+            RUSTSEC-2025-0075,
+            RUSTSEC-2025-0080,
+            RUSTSEC-2025-0081,
+            RUSTSEC-2025-0098,
+            RUSTSEC-2025-0100

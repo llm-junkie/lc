@@ -1,0 +1,25 @@
+{
+  "name": "Sport Y",
+  "version": 1,
+  "mode": "spine",
+  "base": "dark",
+  "codeTheme": "vsc-dark-plus",
+  "spine": {
+    "--bg": "#0d0d10",
+    "--bg-elev-1": "#18181b",
+    "--bg-elev-2": "#1f1f23",
+    "--bg-elev-3": "#27272a",
+    "--accent": "#c8c832",
+    "--text": "#fafafa",
+    "--text-muted": "#a1a1aa",
+    "--text-faint": "#71717a",
+    "--border": "#2a2a30",
+    "--border-strong": "#3a3a42",
+    "--accent-hover": "#e3e36d",
+    "--accent-soft": "rgba(200, 200, 50, 0.16)",
+    "--user-bubble-gradient": "linear-gradient(135deg, rgba(230, 230, 0, 0.18) 0%, rgba(230, 230, 0, 0.12) 100%)",
+    "--user-bubble-border": "rgba(255, 150, 0, 0.16)",
+    "--code-block-bg": "#1e1e1e",
+    "--code-block-fg": "#d4d4d4"
+  }
+}

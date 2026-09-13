@@ -1,0 +1,15 @@
+{
+  "name": "Ink",
+  "version": 1,
+  "mode": "spine",
+  "base": "dark",
+  "codeTheme": "vsc-dark-plus",
+  "spine": {
+    "--bg": "#0c0c12",
+    "--bg-elev-1": "#141420",
+    "--bg-elev-2": "#1d1d30",
+    "--bg-elev-3": "#272740",
+    "--accent": "#a78bfa",
+    "--text": "#e4e4ec"
+  }
+}

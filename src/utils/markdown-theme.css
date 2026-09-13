@@ -1,0 +1,49 @@
+/* Light-mode overrides for Prism.js. The dark theme (prism-tomorrow)
+   is imported as the default in markdown.tsx; we override with the
+   light theme's colors here. */
+:root[data-theme='light'] .md pre {
+  background: var(--code-block-bg);
+  color: var(--code-block-fg);
+}
+:root[data-theme='light'] .md code {
+  background: rgba(175, 184, 193, 0.2);
+  color: #1f2328;
+}
+:root[data-theme='light'] .md pre code {
+  background: transparent;
+  color: inherit;
+}
+/* Prism light theme token colors */
+:root[data-theme='light'] .md .token.comment,
+:root[data-theme='light'] .md .token.prolog,
+:root[data-theme='light'] .md .token.doctype,
+:root[data-theme='light'] .md .token.cdata { color: #708090; }
+:root[data-theme='light'] .md .token.punctuation { color: #999; }
+:root[data-theme='light'] .md .token.property,
+:root[data-theme='light'] .md .token.tag,
+:root[data-theme='light'] .md .token.boolean,
+:root[data-theme='light'] .md .token.number,
+:root[data-theme='light'] .md .token.constant,
+:root[data-theme='light'] .md .token.symbol,
+:root[data-theme='light'] .md .token.deleted { color: #905; }
+:root[data-theme='light'] .md .token.selector,
+:root[data-theme='light'] .md .token.attr-name,
+:root[data-theme='light'] .md .token.string,
+:root[data-theme='light'] .md .token.char,
+:root[data-theme='light'] .md .token.builtin,
+:root[data-theme='light'] .md .token.inserted { color: #690; }
+:root[data-theme='light'] .md .token.operator,
+:root[data-theme='light'] .md .token.entity,
+:root[data-theme='light'] .md .token.url,
+:root[data-theme='light'] .md .language-css .token.string,
+:root[data-theme='light'] .md .style .token.string { color: #9a6e3a; }
+:root[data-theme='light'] .md .token.atrule,
+:root[data-theme='light'] .md .token.attr-value,
+:root[data-theme='light'] .md .token.keyword { color: #07a; }
+:root[data-theme='light'] .md .token.function,
+:root[data-theme='light'] .md .token.class-name { color: #dd4a68; }
+:root[data-theme='light'] .md .token.regex,
+:root[data-theme='light'] .md .token.important,
+:root[data-theme='light'] .md .token.variable { color: #e90; }
+
+/* Generic markdown styles live in index.css so they share the design system. */

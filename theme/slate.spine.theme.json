@@ -1,0 +1,17 @@
+{
+  "name": "Slate",
+  "version": 1,
+  "mode": "spine",
+  "base": "dark",
+  "codeTheme": "vsc-dark-plus",
+  "spine": {
+    "--bg": "#121316",
+    "--bg-elev-1": "#1a1c20",
+    "--bg-elev-2": "#23262b",
+    "--bg-elev-3": "#2d3137",
+    "--accent": "#94a3b8",
+    "--text": "#e8eaed",
+    "--accent-soft": "rgba(148, 163, 184, 0.16)",
+    "--user-bubble-gradient": "linear-gradient(135deg, rgba(138, 187, 255, 0.18) 0%, rgba(138, 187, 255, 0.12) 100%)"
+  }
+}

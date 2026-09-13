@@ -1,0 +1,25 @@
+{
+  "name": "VS Dark",
+  "version": 1,
+  "mode": "spine",
+  "base": "dark",
+  "codeTheme": "vsc-dark-plus",
+  "spine": {
+    "--bg": "#0d0d10",
+    "--bg-elev-1": "#18181b",
+    "--bg-elev-2": "#1f1f23",
+    "--bg-elev-3": "#27272a",
+    "--accent": "#60c0ff",
+    "--text": "#fafafa",
+    "--text-muted": "#a1a1aa",
+    "--text-faint": "#71717a",
+    "--border": "#2a2a30",
+    "--border-strong": "#3a3a42",
+    "--accent-hover": "#9bdeff",
+    "--accent-soft": "rgba(96, 192, 255, 0.16)",
+    "--user-bubble-gradient": "linear-gradient(135deg, rgba(96, 192, 255, 0.18) 0%, rgba(96, 192, 255, 0.12) 100%)",
+    "--user-bubble-border": "rgba(180, 239, 254, 0.16)",
+    "--code-block-bg": "#1e1e1e",
+    "--code-block-fg": "#d4d4d4"
+  }
+}

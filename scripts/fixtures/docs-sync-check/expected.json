@@ -1,0 +1,29 @@
+{
+  "issues": [
+    { "kind": "broken-anchor", "file": "sub/bad.md", "target": "#absent-anchor" },
+    { "kind": "broken-anchor", "file": "sub/bad.md", "target": "./target.md#no-such-heading" },
+    { "kind": "broken-link", "file": "sub/bad.md", "target": "./missing.md" },
+    { "kind": "broken-link", "file": "sub/bad.md", "target": "./missing-html.md" },
+    { "kind": "broken-link", "file": "sub/bad.md", "target": "./missing-reference.md" },
+    { "kind": "broken-link", "file": "sub/bad.md", "target": "./missing-shortcut.md" },
+    { "kind": "broken-link", "file": "sub/bad.md", "target": "./nodir/" },
+    { "kind": "broken-path", "file": "sub/bad.md", "target": "fixture-src/absent.txt" },
+    { "kind": "broken-path", "file": "sub/bad.md", "target": "fixture-src/{hello,absent}.txt" },
+    { "kind": "broken-reference", "file": "sub/bad.md", "target": "not-defined" },
+    { "kind": "broken-source-doc", "file": "sub/source-doc.ts", "target": "docs/missing.md" },
+    { "kind": "broken-source-doc", "file": "sub/source-doc.ts", "target": "log/missing-plan.md" },
+    { "kind": "case-mismatch", "file": "sub/bad.md", "target": "../GOOD.md" },
+    { "kind": "invalid-record-name", "file": "logs/a16__202601030303.md", "target": "a16__202601030303.md" },
+    { "kind": "leakage", "file": "sub/bad.md", "target": "a99__202601010101" },
+    { "kind": "leakage", "file": "sub/bad.md", "target": "a16c__202601020202" },
+    { "kind": "leakage", "file": "sub/bad.py", "target": "a99__202601010101" },
+    { "kind": "leakage", "file": "sub/bad.py", "target": "a13__202601040404" },
+    { "kind": "leakage", "file": "sub/bad-extra.md", "target": "a99__202601010101" },
+    { "kind": "leakage", "file": "sub/bad-extra.md", "target": "a16c__202601020202" },
+    { "kind": "leakage", "file": "sub/bad.test.ts", "target": "a99__202601010101" },
+    { "kind": "leakage", "file": "sub/bad.ts", "target": "a99__202601010101" },
+    { "kind": "leakage", "file": "sub/bad.ts", "target": "a16c__202601020202" },
+    { "kind": "leakage", "file": "sub/expected.json", "target": "a99__202601010101" },
+    { "kind": "orphan", "file": "orphan.md", "target": "" }
+  ]
+}

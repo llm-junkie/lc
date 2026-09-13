@@ -1,0 +1,2045 @@
+{
+  "schema_version": 1,
+  "registry_id": "lc-provider-contracts",
+  "updated_at": "2026-09-04",
+  "invariants": {
+    "retain_all_returned_reasoning": true,
+    "tool_history_can_remove_reasoning": false,
+    "missing_reasoning_tokens": "unknown",
+    "effort_value_handling": "passthrough",
+    "provider_selection": "exact-origin-path-protocol",
+    "unmatched_provider": "protocol-fallback-unknown-semantics",
+    "unregistered_exact_model": "surface-facts-only"
+  },
+  "external_metadata": {
+    "models_dev": {
+      "repository": "https://github.com/anomalyco/models.dev",
+      "reviewed_commit": "aacba0778d5c1fd07bdee4eff5b37083dd1d8d3b",
+      "reviewed_at": "2026-09-02",
+      "generated_artifacts": [
+        "https://models.dev/api.json",
+        "https://models.dev/models.json",
+        "https://models.dev/catalog.json"
+      ],
+      "use_for": [
+        "provider API roots and SDK-family hints",
+        "model context and output limits",
+        "reasoning availability and documented control options",
+        "modalities, tool support, structured output, and temperature support",
+        "coarse Responses versus Completions shape and static body or header hints",
+        "interleaved reasoning_content or reasoning_details field hints"
+      ],
+      "not_authoritative_for": [
+        "reasoning carrier semantics such as plaintext, summary, encrypted, signed, or redacted",
+        "reasoning replay and history retention",
+        "SSE event subtype and cumulative-versus-append behavior",
+        "usage paths and inclusive-versus-additive token accounting",
+        "Tool History independence and other LC policy",
+        "provider continuation-state portability or terminal reconciliation"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "google-interactions", "kind": "official-doc",
+      "title": "Google Gemini Interactions REST reference",
+      "url": "https://ai.google.dev/api/interactions-api", "verified_at": "2026-09-04"
+    },
+    {
+      "id": "google-interactions-functions", "kind": "official-doc",
+      "title": "Google Gemini Interactions function-calling reference",
+      "url": "https://ai.google.dev/api/interactions-api#CreateInteraction-function_calling", "verified_at": "2026-09-04"
+    },
+    {
+      "id": "google-interactions-streaming", "kind": "official-doc",
+      "title": "Google Gemini streaming interactions",
+      "url": "https://ai.google.dev/gemini-api/docs/streaming", "verified_at": "2026-09-04"
+    },
+    {
+      "id": "google-interactions-thinking", "kind": "official-doc",
+      "title": "Google Gemini thinking and signature replay",
+      "url": "https://ai.google.dev/gemini-api/docs/thinking", "verified_at": "2026-09-04"
+    },
+    {
+      "id": "models-dev-schema",
+      "kind": "upstream-metadata-schema",
+      "title": "models.dev core schema at reviewed commit",
+      "url": "https://github.com/anomalyco/models.dev/blob/aacba0778d5c1fd07bdee4eff5b37083dd1d8d3b/packages/core/src/schema.ts",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "openai-responses",
+      "kind": "official-doc",
+      "title": "OpenAI Responses create reference",
+      "url": "https://developers.openai.com/api/reference/cli/resources/responses/methods/create",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "openai-model-guidance",
+      "kind": "official-doc",
+      "title": "OpenAI latest model guidance",
+      "url": "https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.2",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "anthropic-thinking",
+      "kind": "official-doc",
+      "title": "Anthropic extended thinking",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/thinking",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "anthropic-streaming",
+      "kind": "official-doc",
+      "title": "Anthropic Messages streaming",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/streaming",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "anthropic-models",
+      "kind": "official-doc",
+      "title": "Anthropic Models API",
+      "url": "https://platform.claude.com/docs/en/api/models",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "deepseek-thinking",
+      "kind": "official-doc",
+      "title": "DeepSeek thinking mode",
+      "url": "https://api-docs.deepseek.com/guides/thinking_mode/",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "deepseek-responses",
+      "kind": "official-doc",
+      "title": "DeepSeek Responses API",
+      "url": "https://api-docs.deepseek.com/guides/responses_api/",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "deepseek-messages",
+      "kind": "official-doc",
+      "title": "DeepSeek Anthropic API compatibility",
+      "url": "https://api-docs.deepseek.com/guides/anthropic_api/",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "minimax-chat",
+      "kind": "official-doc",
+      "title": "MiniMax OpenAI-compatible text API",
+      "url": "https://platform.minimax.io/docs/api-reference/text-openai-api",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "minimax-messages",
+      "kind": "official-doc",
+      "title": "MiniMax Anthropic-compatible Messages API",
+      "url": "https://platform.minimax.io/docs/api-reference/text-chat-anthropic",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "minimax-responses",
+      "kind": "official-doc",
+      "title": "MiniMax Responses API",
+      "url": "https://platform.minimax.io/docs/api-reference/responses-create",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "kimi-thinking",
+      "kind": "official-doc",
+      "title": "Kimi Open Platform thinking models",
+      "url": "https://platform.kimi.ai/docs/guide/use-thinking-models",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "kimi-effort",
+      "kind": "official-doc",
+      "title": "Kimi Open Platform reasoning effort",
+      "url": "https://platform.kimi.ai/docs/guide/use-reasoning-effort",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "kimi-chat",
+      "kind": "official-doc",
+      "title": "Kimi Open Platform Chat API",
+      "url": "https://platform.kimi.ai/docs/api/chat",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "kimi-code-models",
+      "kind": "official-doc",
+      "title": "Kimi Code models",
+      "url": "https://www.kimi.com/code/docs/en/kimi-code/models.html",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "kimi-code-overview",
+      "kind": "official-doc",
+      "title": "Kimi Code API overview",
+      "url": "https://www.kimi.com/code/docs/en/",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "openrouter-reasoning",
+      "kind": "official-doc",
+      "title": "OpenRouter reasoning tokens",
+      "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "openrouter-streaming",
+      "kind": "official-doc",
+      "title": "OpenRouter Responses streaming",
+      "url": "https://openrouter.ai/docs/agent-sdk/call-model/streaming",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "zai-glm53",
+      "kind": "official-doc",
+      "title": "Z.AI GLM 5.3 model API",
+      "url": "https://docs.z.ai/guides/llm/glm-5.3#model-api",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "zai-chat",
+      "kind": "official-doc",
+      "title": "Z.AI Chat Completions",
+      "url": "https://docs.z.ai/api-reference/llm/chat-completion",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "alibaba-chat",
+      "kind": "official-doc",
+      "title": "Alibaba Model Studio OpenAI Chat compatibility",
+      "url": "https://help.aliyun.com/en/model-studio/qwen-api-via-openai-chat-completions",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "alibaba-responses",
+      "kind": "official-doc",
+      "title": "Alibaba Model Studio OpenAI Responses compatibility",
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-responses",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "alibaba-messages",
+      "kind": "official-doc",
+      "title": "Alibaba Model Studio Anthropic Messages compatibility",
+      "url": "https://www.alibabacloud.com/help/en/model-studio/anthropic-api-messages",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "qwencloud-introduction",
+      "kind": "official-doc",
+      "title": "QwenCloud platform introduction",
+      "url": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "qwencloud-chat",
+      "kind": "official-doc",
+      "title": "QwenCloud OpenAI-compatible Chat reference",
+      "url": "https://docs.qwencloud.com/api-reference/chat/openai-chat",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "qwencloud-responses",
+      "kind": "official-doc",
+      "title": "QwenCloud OpenAI-compatible Responses reference",
+      "url": "https://docs.qwencloud.com/api-reference/chat/openai-responses",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "qwencloud-messages",
+      "kind": "official-doc",
+      "title": "QwenCloud Anthropic-compatible Messages reference",
+      "url": "https://docs.qwencloud.com/api-reference/chat/anthropic",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "qwencloud-thinking",
+      "kind": "official-doc",
+      "title": "QwenCloud thinking-mode guide",
+      "url": "https://docs.qwencloud.com/developer-guides/text-generation/thinking",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "gemini-openai",
+      "kind": "official-doc",
+      "title": "Gemini OpenAI compatibility",
+      "url": "https://ai.google.dev/gemini-api/docs/openai",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "lmstudio-native",
+      "kind": "official-doc",
+      "title": "LM Studio native chat",
+      "url": "https://lmstudio.ai/docs/developer/rest/chat",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "lmstudio-responses",
+      "kind": "official-doc",
+      "title": "LM Studio OpenAI-compatible Responses",
+      "url": "https://lmstudio.ai/docs/developer/openai-compat/responses",
+      "verified_at": "2026-09-02"
+    },
+    {
+      "id": "meta-reasoning",
+      "kind": "official-doc",
+      "title": "Meta Model API reasoning",
+      "url": "https://dev.meta.ai/docs/reasoning",
+      "verified_at": "2026-09-03"
+    },
+    {
+      "id": "meta-responses",
+      "kind": "official-doc",
+      "title": "Meta Model API Responses protocol",
+      "url": "https://dev.meta.ai/docs/protocols/responses",
+      "verified_at": "2026-09-03"
+    },
+    {
+      "id": "meta-messages",
+      "kind": "official-doc",
+      "title": "Meta Model API Messages protocol",
+      "url": "https://ai.developer.meta.com/docs/protocols/messages",
+      "verified_at": "2026-09-03"
+    },
+    {
+      "id": "meta-prompt-caching",
+      "kind": "official-doc",
+      "title": "Meta Model API prompt caching",
+      "url": "https://dev.meta.ai/docs/prompt-caching",
+      "verified_at": "2026-09-03"
+    },
+    {
+      "id": "meta-token-counting",
+      "kind": "official-doc",
+      "title": "Meta Model API token counting",
+      "url": "https://dev.meta.ai/docs/token-counting",
+      "verified_at": "2026-09-03"
+    }
+  ],
+  "contracts": [
+    {
+      "id": "google.gemini-interactions", "provider_id": "google", "product": "Gemini Developer API",
+      "protocol": "gemini-interactions", "status": "partially-verified", "verified_at": "2026-09-04",
+      "match": { "origins": ["https://generativelanguage.googleapis.com"], "base_path_prefixes": ["/v1beta"], "path_match": "exact" },
+      "request_path": "/interactions", "model_policy": "exact-registration",
+      "controls": [
+        { "semantic": "effort", "path": "generation_config.thinking_level", "handling": "passthrough" },
+        { "semantic": "summary", "path": "generation_config.thinking_summaries", "handling": "constant", "constant": "auto" }
+      ],
+      "history": { "archive": "all-returned", "replay": "provider-filtered", "tool_history_independent": true,
+        "provider_filter": "Preserve all ordered steps on this surface; Google owns cross-model thought filtering." },
+      "carriers": [
+        { "kind": "encrypted", "response_paths": ["steps[].signature"], "stream_events": ["step.delta.thought_signature"], "replay": "exact", "meter": "provider-reported-bound" },
+        { "kind": "summary", "response_paths": ["steps[].summary"], "stream_events": ["step.delta.thought_summary"], "replay": "exact", "meter": "display-only" }
+      ],
+      "streaming": { "delta_mode": "append", "live_meter": "unknown-until-terminal", "terminal_reconciliation": "replace-transient" },
+      "usage": { "input_tokens": ["usage.total_input_tokens"], "output_tokens": ["usage.total_output_tokens"], "reasoning_tokens": ["usage.total_thought_tokens"], "reasoning_relation": "separate-from-output", "missing_reasoning": "unknown" },
+      "models": [
+        { "id": "gemini-3.8-flash", "reasoning": "always", "capabilities": { "vision": true, "tools": true }, "controls": [
+          { "semantic": "effort", "path": "generation_config.thinking_level", "handling": "passthrough", "documented_values": ["low", "medium", "high"] }
+        ] },
+        { "id": "gemini-2.5-pro", "reasoning": "always" },
+        { "id": "gemini-2.5-flash", "reasoning": "optional" },
+        { "id": "gemini-2.5-flash-lite", "reasoning": "optional" }
+      ],
+      "source_ids": ["google-interactions", "google-interactions-functions", "google-interactions-streaming", "google-interactions-thinking"],
+      "note": "Documentation projection only; live 3.8/2.5 acceptance pending. Sampling omitted. Preserve reported totals; the separately reported tool-use counter is not added to total tokens."
+    },
+    {
+      "id": "openai.chat",
+      "provider_id": "openai",
+      "product": "OpenAI API",
+      "protocol": "openai-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.openai.com"],
+        "base_path_prefixes": ["/", "/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning_effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "none",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": [],
+          "stream_events": [],
+          "replay": "none",
+          "meter": "unknown",
+          "note": "OpenAI documents cross-turn reasoning-item replay for Responses, not Chat Completions."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["openai-model-guidance"]
+    },
+    {
+      "id": "openai.responses",
+      "provider_id": "openai",
+      "product": "OpenAI API",
+      "protocol": "openai-responses",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.openai.com"],
+        "base_path_prefixes": ["/", "/v1"]
+      },
+      "request_path": "/responses",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough"
+        },
+        {
+          "semantic": "carrier-return",
+          "path": "include",
+          "handling": "constant",
+          "constant": ["reasoning.encrypted_content"]
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "provider-output-items",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "encrypted",
+          "response_paths": ["output[].encrypted_content"],
+          "stream_events": [],
+          "replay": "exact",
+          "meter": "provider-reported-bound"
+        },
+        {
+          "kind": "summary",
+          "response_paths": ["output[].summary[].text"],
+          "stream_events": ["response.reasoning_summary_text.delta", "response.reasoning_summary_text.done"],
+          "replay": "exact",
+          "meter": "display-only"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["openai-responses", "openai-model-guidance"]
+    },
+    {
+      "id": "anthropic.messages",
+      "provider_id": "anthropic",
+      "product": "Claude API",
+      "protocol": "anthropic-messages",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.anthropic.com"],
+        "base_path_prefixes": ["/", "/v1"]
+      },
+      "request_path": "/messages",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven"
+        },
+        {
+          "semantic": "effort",
+          "path": "output_config.effort",
+          "handling": "passthrough"
+        },
+        {
+          "semantic": "budget",
+          "path": "thinking.budget_tokens",
+          "handling": "capability-driven"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "all-prior",
+        "tool_history_independent": true,
+        "provider_filter": "Pass blocks unchanged across Claude model switches; the API filters unreadable blocks."
+      },
+      "carriers": [
+        {
+          "kind": "encrypted",
+          "response_paths": ["content[].signature"],
+          "companion_paths": ["content[].thinking"],
+          "stream_events": ["content_block_delta.thinking_delta", "content_block_delta.signature_delta"],
+          "replay": "exact",
+          "meter": "provider-reported-bound"
+        },
+        {
+          "kind": "redacted",
+          "response_paths": ["content[].data"],
+          "stream_events": [],
+          "replay": "exact",
+          "meter": "provider-reported-bound"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens", "usage.cache_read_input_tokens", "usage.cache_creation_input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "inclusive-undifferentiated",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["anthropic-thinking", "anthropic-streaming", "anthropic-models"]
+    },
+    {
+      "id": "deepseek.chat",
+      "provider_id": "deepseek",
+      "product": "DeepSeek API",
+      "protocol": "openai-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.deepseek.com"],
+        "base_path_prefixes": ["/", "/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven",
+          "documented_values": ["enabled", "disabled"]
+        },
+        {
+          "semantic": "effort",
+          "path": "reasoning_effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "tool-request-all-prior",
+        "tool_history_independent": true,
+        "provider_filter": "Historical reasoning_content is ignored when the request has no tools."
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["choices[].message.reasoning_content"],
+          "stream_events": ["choices[].delta.reasoning_content"],
+          "replay": "plaintext",
+          "meter": "local-text"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["deepseek-thinking"]
+    },
+    {
+      "id": "deepseek.responses",
+      "provider_id": "deepseek",
+      "product": "DeepSeek API",
+      "protocol": "openai-responses",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.deepseek.com"],
+        "base_path_prefixes": ["/", "/v1"]
+      },
+      "request_path": "/responses",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "all-prior",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["output[].content[].text"],
+          "stream_events": ["response.reasoning_text.delta"],
+          "replay": "plaintext",
+          "meter": "local-text",
+          "note": "Replayed reasoning input items do not accept summary or encrypted_content fields."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["deepseek-responses"]
+    },
+    {
+      "id": "deepseek.messages",
+      "provider_id": "deepseek",
+      "product": "DeepSeek API",
+      "protocol": "anthropic-messages",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.deepseek.com"],
+        "base_path_prefixes": ["/anthropic", "/anthropic/v1"]
+      },
+      "request_path": "/messages",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven",
+          "documented_values": ["enabled", "disabled"]
+        },
+        {
+          "semantic": "effort",
+          "path": "output_config.effort",
+          "handling": "passthrough"
+        },
+        {
+          "semantic": "budget",
+          "path": "thinking.budget_tokens",
+          "handling": "unsupported"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["content[].thinking"],
+          "stream_events": ["content_block_delta.thinking_delta"],
+          "replay": "plaintext",
+          "meter": "local-text",
+          "note": "The compatibility table does not define an encrypted carrier and rejects redacted_thinking."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "inclusive-undifferentiated",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["deepseek-messages"]
+    },
+    {
+      "id": "minimax.chat",
+      "provider_id": "minimax",
+      "product": "MiniMax API",
+      "protocol": "openai-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.minimax.io"],
+        "base_path_prefixes": ["/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "carrier-return",
+          "path": "reasoning_split",
+          "handling": "constant",
+          "constant": true
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "tool-request-all-prior",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["choices[].message.reasoning_content", "choices[].message.reasoning_details"],
+          "stream_events": ["choices[].delta.reasoning_content", "choices[].delta.reasoning_details"],
+          "replay": "exact",
+          "meter": "local-text"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "cumulative",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["minimax-chat"]
+    },
+    {
+      "id": "minimax.responses",
+      "provider_id": "minimax",
+      "product": "MiniMax API",
+      "protocol": "openai-responses",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.minimax.io"],
+        "base_path_prefixes": ["/v1"]
+      },
+      "request_path": "/responses",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough",
+          "note": "For M3, non-none efforts enable reasoning but do not tune depth."
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": ["output[]"],
+          "stream_events": [],
+          "replay": "unknown",
+          "meter": "unknown",
+          "note": "The public reference does not specify the reasoning item fields or SSE subtype."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "not-documented",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["minimax-responses"]
+    },
+    {
+      "id": "minimax.messages",
+      "provider_id": "minimax",
+      "product": "MiniMax API",
+      "protocol": "anthropic-messages",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.minimax.io"],
+        "base_path_prefixes": ["/anthropic", "/anthropic/v1"]
+      },
+      "request_path": "/messages",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven",
+          "documented_values": ["adaptive", "disabled"]
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "same-turn",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "signed-plaintext",
+          "response_paths": ["content[].thinking"],
+          "companion_paths": ["content[].signature"],
+          "stream_events": ["content_block_delta.thinking_delta", "content_block_delta.signature_delta"],
+          "replay": "exact",
+          "meter": "local-text",
+          "note": "A 64-hex signature is replay-integrity state; it does not make readable thinking encrypted."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "inclusive-undifferentiated",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["minimax-messages"]
+    },
+    {
+      "id": "moonshot.chat",
+      "provider_id": "moonshotai",
+      "product": "Kimi Open Platform",
+      "protocol": "openai-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.moonshot.ai"],
+        "base_path_prefixes": ["/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "exact-registration",
+      "controls": [],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["choices[].message.reasoning_content"],
+          "stream_events": ["choices[].delta.reasoning_content"],
+          "replay": "plaintext",
+          "meter": "local-text"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "inclusive-undifferentiated",
+        "missing_reasoning": "unknown"
+      },
+      "models": [
+        {
+          "id": "kimi-k3",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "reasoning_effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ],
+          "history": {
+            "archive": "all-returned",
+            "replay": "all-prior",
+            "tool_history_independent": true
+          }
+        },
+        {
+          "id": "kimi-k2.7-code",
+          "reasoning": "always",
+          "controls": [],
+          "history": {
+            "archive": "all-returned",
+            "replay": "all-prior",
+            "tool_history_independent": true
+          }
+        },
+        {
+          "id": "kimi-k2.7-code-highspeed",
+          "reasoning": "always",
+          "controls": [],
+          "history": {
+            "archive": "all-returned",
+            "replay": "all-prior",
+            "tool_history_independent": true
+          }
+        },
+        {
+          "id": "kimi-k2.6",
+          "reasoning": "optional",
+          "controls": [
+            {
+              "semantic": "mode",
+              "path": "thinking.type",
+              "handling": "capability-driven",
+              "documented_values": ["enabled", "disabled"]
+            },
+            {
+              "semantic": "retention",
+              "path": "thinking.keep",
+              "handling": "constant",
+              "constant": "all"
+            }
+          ],
+          "history": {
+            "archive": "all-returned",
+            "replay": "all-prior",
+            "tool_history_independent": true,
+            "provider_filter": "Complete historical reasoning is retained when thinking.keep is all."
+          }
+        }
+      ],
+      "source_ids": ["kimi-thinking", "kimi-effort", "kimi-chat"]
+    },
+    {
+      "id": "kimi-code.chat",
+      "provider_id": "kimi-code",
+      "product": "Kimi Code membership API",
+      "protocol": "openai-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.kimi.com"],
+        "base_path_prefixes": ["/coding/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "exact-registration",
+      "controls": [],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["choices[].message.reasoning_content"],
+          "stream_events": ["choices[].delta.reasoning_content"],
+          "replay": "plaintext",
+          "meter": "local-text"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "inclusive-undifferentiated",
+        "missing_reasoning": "unknown"
+      },
+      "models": [
+        {
+          "id": "k3",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "reasoning_effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ],
+          "history": {
+            "archive": "all-returned",
+            "replay": "all-prior",
+            "tool_history_independent": true
+          },
+          "note": "Server-owned aliases and effort mapping are not copied into LC."
+        },
+        {
+          "id": "k3-256k",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "reasoning_effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ],
+          "history": {
+            "archive": "all-returned",
+            "replay": "all-prior",
+            "tool_history_independent": true
+          }
+        }
+      ],
+      "source_ids": ["kimi-code-models", "kimi-code-overview"]
+    },
+    {
+      "id": "kimi-code.messages",
+      "provider_id": "kimi-code",
+      "product": "Kimi Code membership API",
+      "protocol": "anthropic-messages",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.kimi.com"],
+        "base_path_prefixes": ["/coding", "/coding/v1"]
+      },
+      "request_path": "/v1/messages",
+      "model_policy": "exact-registration",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven"
+        },
+        {
+          "semantic": "effort",
+          "path": "output_config.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "all-prior",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": ["content[]"],
+          "stream_events": ["content_block_delta.thinking_delta", "content_block_delta.signature_delta"],
+          "replay": "exact",
+          "meter": "unknown",
+          "note": "The raw carrier and separate reasoning accounting require a sanitized first-party fixture."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "models": [
+        {
+          "id": "k3",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "output_config.effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ]
+        },
+        {
+          "id": "k3-256k",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "output_config.effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ]
+        }
+      ],
+      "source_ids": ["kimi-code-models", "kimi-code-overview"]
+    },
+    {
+      "id": "openrouter.chat",
+      "provider_id": "openrouter",
+      "product": "OpenRouter API",
+      "protocol": "openai-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://openrouter.ai"],
+        "base_path_prefixes": ["/api/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough"
+        },
+        {
+          "semantic": "budget",
+          "path": "reasoning.max_tokens",
+          "handling": "capability-driven"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "all-prior",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["choices[].message.reasoning_details[type=reasoning.text].text"],
+          "stream_events": ["choices[].delta.reasoning_details[type=reasoning.text].text"],
+          "replay": "exact",
+          "meter": "local-text"
+        },
+        {
+          "kind": "summary",
+          "response_paths": ["choices[].message.reasoning_details[type=reasoning.summary].summary"],
+          "stream_events": ["choices[].delta.reasoning_details[type=reasoning.summary].summary"],
+          "replay": "exact",
+          "meter": "display-only"
+        },
+        {
+          "kind": "encrypted",
+          "response_paths": ["choices[].message.reasoning_details[type=reasoning.encrypted].data"],
+          "stream_events": [],
+          "replay": "exact",
+          "meter": "provider-reported-bound"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "mixed",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["openrouter-reasoning"]
+    },
+    {
+      "id": "openrouter.responses",
+      "provider_id": "openrouter",
+      "product": "OpenRouter API",
+      "protocol": "openai-responses",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://openrouter.ai"],
+        "base_path_prefixes": ["/api/v1"]
+      },
+      "request_path": "/responses",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "provider-output-items",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": ["output[]"],
+          "stream_events": ["response.reasoning.delta"],
+          "replay": "exact",
+          "meter": "unknown",
+          "note": "The generic reasoning delta does not identify the upstream carrier class."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["openrouter-reasoning", "openrouter-streaming"]
+    },
+    {
+      "id": "openrouter.messages",
+      "provider_id": "openrouter",
+      "product": "OpenRouter API",
+      "protocol": "anthropic-messages",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://openrouter.ai"],
+        "base_path_prefixes": ["/api/v1"]
+      },
+      "request_path": "/messages",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven"
+        },
+        {
+          "semantic": "effort",
+          "path": "output_config.effort",
+          "handling": "passthrough"
+        },
+        {
+          "semantic": "budget",
+          "path": "thinking.budget_tokens",
+          "handling": "capability-driven"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "all-prior",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": ["content[]"],
+          "stream_events": ["content_block_delta.thinking_delta", "content_block_delta.signature_delta"],
+          "replay": "exact",
+          "meter": "unknown",
+          "note": "A routed model name does not establish the upstream reasoning carrier."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "unknown",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["openrouter-reasoning"]
+    },
+    {
+      "id": "zai.chat",
+      "provider_id": "zai",
+      "product": "Z.AI API",
+      "protocol": "openai-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.z.ai"],
+        "base_path_prefixes": ["/api/paas/v4"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven",
+          "documented_values": ["enabled", "disabled"]
+        },
+        {
+          "semantic": "retention",
+          "path": "thinking.clear_thinking",
+          "handling": "constant",
+          "constant": false
+        },
+        {
+          "semantic": "effort",
+          "path": "reasoning_effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "all-prior",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["choices[].message.reasoning_content"],
+          "stream_events": ["choices[].delta.reasoning_content"],
+          "replay": "plaintext",
+          "meter": "local-text"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "models": [
+        {
+          "id": "glm-5.3",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "reasoning_effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ]
+        }
+      ],
+      "source_ids": ["zai-glm53", "zai-chat"]
+    },
+    {
+      "id": "zai.responses",
+      "provider_id": "zai",
+      "product": "Z.AI API",
+      "protocol": "openai-responses",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.z.ai"],
+        "base_path_prefixes": ["/api/paas/v4"]
+      },
+      "request_path": "/responses",
+      "model_policy": "exact-registration",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": ["output[]"],
+          "stream_events": [],
+          "replay": "unknown",
+          "meter": "unknown",
+          "note": "The model page verifies Responses support but not the carrier or SSE subtype."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "not-documented",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "models": [
+        {
+          "id": "glm-5.3",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "reasoning.effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ]
+        }
+      ],
+      "source_ids": ["zai-glm53"]
+    },
+    {
+      "id": "zai.messages",
+      "provider_id": "zai",
+      "product": "Z.AI API",
+      "protocol": "anthropic-messages",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://api.z.ai"],
+        "base_path_prefixes": ["/api/anthropic"]
+      },
+      "request_path": "/messages",
+      "model_policy": "exact-registration",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven"
+        },
+        {
+          "semantic": "effort",
+          "path": "output_config.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": ["content[]"],
+          "stream_events": [],
+          "replay": "unknown",
+          "meter": "unknown",
+          "note": "The model page verifies Messages support but not the raw carrier."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "not-documented",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "models": [
+        {
+          "id": "glm-5.3",
+          "reasoning": "always",
+          "controls": [
+            {
+              "semantic": "effort",
+              "path": "output_config.effort",
+              "handling": "passthrough",
+              "documented_values": ["low", "high", "max"]
+            }
+          ]
+        }
+      ],
+      "source_ids": ["zai-glm53"]
+    },
+    {
+      "id": "alibaba.chat",
+      "provider_id": "alibaba",
+      "product": "Alibaba Cloud Model Studio",
+      "additional_products": ["QwenCloud"],
+      "protocol": "openai-chat",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://dashscope-intl.aliyuncs.com", "https://dashscope.aliyuncs.com"],
+        "base_path_prefixes": ["/compatible-mode/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning_effort",
+          "handling": "passthrough"
+        },
+        {
+          "semantic": "retention",
+          "path": "preserve_thinking",
+          "handling": "capability-driven",
+          "documented_values": [true, false],
+          "note": "Set true only when the selected model advertises this field; it preserves historical reasoning_content."
+        },
+        {
+          "semantic": "retention",
+          "path": "clear_thinking",
+          "handling": "capability-driven",
+          "documented_values": [true, false],
+          "note": "Keep false only when the selected model advertises this field; false retains complete historical reasoning."
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "provider-filtered",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["choices[].message.reasoning_content"],
+          "stream_events": ["choices[].delta.reasoning_content"],
+          "replay": "plaintext",
+          "meter": "local-text"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["alibaba-chat", "qwencloud-introduction", "qwencloud-chat", "qwencloud-thinking"],
+      "note": "QwenCloud is a separate product and account surface but documents the same international DashScope wire origin and path."
+    },
+    {
+      "id": "alibaba.responses",
+      "provider_id": "alibaba",
+      "product": "Alibaba Cloud Model Studio",
+      "additional_products": ["QwenCloud"],
+      "protocol": "openai-responses",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://dashscope-intl.aliyuncs.com", "https://dashscope.aliyuncs.com"],
+        "base_path_prefixes": ["/compatible-mode/v1"]
+      },
+      "request_path": "/responses",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "remote-handle",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "summary",
+          "response_paths": ["output[].summary[].text"],
+          "stream_events": ["response.reasoning_text.delta"],
+          "replay": "none",
+          "meter": "display-only",
+          "note": "This provider documents reasoning_text deltas as summaries, not plaintext chain of thought."
+        },
+        {
+          "kind": "remote-handle",
+          "response_paths": ["id"],
+          "stream_events": [],
+          "replay": "provider-managed",
+          "meter": "unknown",
+          "note": "Available only for stored responses; previous_response_id remains valid for seven days."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["alibaba-responses", "qwencloud-introduction", "qwencloud-responses", "qwencloud-thinking"],
+      "note": "QwenCloud is a separate product and account surface but documents the same international DashScope wire origin and path."
+    },
+    {
+      "id": "alibaba.messages",
+      "provider_id": "alibaba",
+      "product": "Alibaba Cloud Model Studio",
+      "additional_products": ["QwenCloud"],
+      "protocol": "anthropic-messages",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://dashscope-intl.aliyuncs.com", "https://dashscope.aliyuncs.com"],
+        "base_path_prefixes": ["/apps/anthropic", "/apps/anthropic/v1"]
+      },
+      "request_path": "/messages",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven"
+        },
+        {
+          "semantic": "budget",
+          "path": "thinking.budget_tokens",
+          "handling": "capability-driven"
+        },
+        {
+          "semantic": "effort",
+          "path": "output_config.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["content[].thinking"],
+          "companion_paths": ["content[].signature"],
+          "stream_events": [],
+          "replay": "unknown",
+          "meter": "local-text",
+          "note": "QwenCloud documents signature as always empty; do not import Anthropic encryption semantics."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "not-documented",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": [],
+        "reasoning_relation": "inclusive-undifferentiated",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["alibaba-messages", "qwencloud-introduction", "qwencloud-messages"],
+      "note": "QwenCloud is a separate product and account surface but documents the same international DashScope wire origin and path."
+    },
+    {
+      "id": "gemini.openai-chat",
+      "provider_id": "google-gemini",
+      "product": "Gemini OpenAI compatibility",
+      "protocol": "openai-chat",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["https://generativelanguage.googleapis.com"],
+        "base_path_prefixes": ["/v1beta/openai"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning_effort",
+          "handling": "passthrough",
+          "note": "Gemini owns model-dependent mapping and disable behavior."
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "unknown",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": [],
+          "stream_events": [],
+          "replay": "unknown",
+          "meter": "unknown"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "not-documented",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["gemini-openai"]
+    },
+    {
+      "id": "lmstudio.native-chat",
+      "provider_id": "lmstudio",
+      "product": "LM Studio native REST API",
+      "protocol": "lmstudio-native-chat",
+      "status": "verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["http://127.0.0.1:1234", "http://localhost:1234"],
+        "base_path_prefixes": ["/api/v1"]
+      },
+      "request_path": "/chat",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning",
+          "handling": "capability-driven",
+          "documented_values": ["off", "low", "medium", "high", "on"]
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "remote-handle",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "plaintext",
+          "response_paths": ["output[].content"],
+          "stream_events": [],
+          "replay": "plaintext",
+          "meter": "local-text"
+        },
+        {
+          "kind": "remote-handle",
+          "response_paths": ["response_id"],
+          "stream_events": [],
+          "replay": "provider-managed",
+          "meter": "unknown"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "plaintext-only",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": [],
+        "output_tokens": [],
+        "reasoning_tokens": ["stats.reasoning_output_tokens"],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["lmstudio-native"]
+    },
+    {
+      "id": "lmstudio.responses",
+      "provider_id": "lmstudio",
+      "product": "LM Studio OpenAI compatibility",
+      "protocol": "openai-responses",
+      "status": "partially-verified",
+      "verified_at": "2026-09-02",
+      "match": {
+        "origins": ["http://127.0.0.1:1234", "http://localhost:1234"],
+        "base_path_prefixes": ["/v1"]
+      },
+      "request_path": "/responses",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "remote-handle",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "remote-handle",
+          "response_paths": ["id"],
+          "stream_events": [],
+          "replay": "provider-managed",
+          "meter": "unknown",
+          "note": "previous_response_id is not locally tokenizable context."
+        },
+        {
+          "kind": "unknown",
+          "response_paths": ["output[]"],
+          "stream_events": [],
+          "replay": "unknown",
+          "meter": "unknown"
+        }
+      ],
+      "streaming": {
+        "delta_mode": "unknown",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "unknown",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["lmstudio-responses"]
+    },
+    {
+      "id": "meta.chat",
+      "provider_id": "meta",
+      "product": "Meta Model API",
+      "protocol": "openai-chat",
+      "status": "partially-verified",
+      "verified_at": "2026-09-03",
+      "match": {
+        "origins": ["https://api.meta.ai"],
+        "base_path_prefixes": ["/v1"]
+      },
+      "request_path": "/chat/completions",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning_effort",
+          "handling": "passthrough"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "none",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "unknown",
+          "response_paths": [],
+          "stream_events": [],
+          "replay": "none",
+          "meter": "unknown",
+          "note": "External API keys receive redacted empty reasoning_content; no replayable reasoning carrier."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.prompt_tokens", "usage.prompt_tokens_details.cached_tokens"],
+        "output_tokens": ["usage.completion_tokens"],
+        "reasoning_tokens": ["usage.completion_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["meta-reasoning", "meta-prompt-caching"],
+      "note": "First-party 7-turn xhigh session observed 2026-09-03: reasoning stays a subset of completion usage (15,505 historical tokens) and cached input stays below the input total; still no replayable reasoning carrier."
+    },
+    {
+      "id": "meta.responses",
+      "provider_id": "meta",
+      "product": "Meta Model API",
+      "protocol": "openai-responses",
+      "status": "partially-verified",
+      "verified_at": "2026-09-03",
+      "match": {
+        "origins": ["https://api.meta.ai"],
+        "base_path_prefixes": ["/v1"]
+      },
+      "request_path": "/responses",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "effort",
+          "path": "reasoning.effort",
+          "handling": "passthrough",
+          "documented_values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        },
+        {
+          "semantic": "carrier-return",
+          "path": "include",
+          "handling": "constant",
+          "constant": ["reasoning.encrypted_content"]
+        },
+        {
+          "semantic": "summary",
+          "path": "reasoning.summary",
+          "handling": "constant",
+          "constant": "auto"
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "provider-output-items",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "encrypted",
+          "response_paths": ["output[].encrypted_content"],
+          "stream_events": [],
+          "replay": "exact",
+          "meter": "provider-reported-bound",
+          "note": "Replay every reasoning item in provider order; encrypted content is the continuation carrier."
+        },
+        {
+          "kind": "summary",
+          "response_paths": ["output[].summary[].text"],
+          "stream_events": ["response.reasoning_summary_text.delta", "response.reasoning_summary_text.done"],
+          "replay": "exact",
+          "meter": "display-only",
+          "note": "Summary is display-only and optional; empty summary is valid. Member shape {type summary_text, text} pinned by first-party fixture."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens", "usage.input_tokens_details.cached_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.reasoning_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["meta-responses", "meta-reasoning", "meta-prompt-caching", "meta-token-counting"],
+      "models": [
+        {
+          "id": "muse-spark-1.3-contributor",
+          "reasoning": "always",
+          "note": "Rejects reasoning.effort none at the model capability level; observed first-party 2026-09-03."
+        }
+      ],
+      "note": "First-party none/max rejections observed 2026-09-03; encrypted-by-default still needs a with/without-include capture."
+    },
+    {
+      "id": "meta.messages",
+      "provider_id": "meta",
+      "product": "Meta Model API",
+      "protocol": "anthropic-messages",
+      "status": "partially-verified",
+      "verified_at": "2026-09-03",
+      "match": {
+        "origins": ["https://api.meta.ai"],
+        "base_path_prefixes": ["/", "/v1"]
+      },
+      "request_path": "/messages",
+      "model_policy": "surface-default",
+      "controls": [
+        {
+          "semantic": "mode",
+          "path": "thinking.type",
+          "handling": "capability-driven",
+          "documented_values": ["adaptive", "enabled", "disabled"]
+        },
+        {
+          "semantic": "effort",
+          "path": "output_config.effort",
+          "handling": "passthrough"
+        },
+        {
+          "semantic": "budget",
+          "path": "thinking.budget_tokens",
+          "handling": "capability-driven",
+          "note": "Compatibility input only; LC never translates effort labels into budgets for Meta."
+        },
+        {
+          "semantic": "summary",
+          "path": "thinking.display",
+          "handling": "server-default",
+          "note": "Candidate display path; pin the literal containing object with a first-party capture."
+        }
+      ],
+      "history": {
+        "archive": "all-returned",
+        "replay": "all-prior",
+        "tool_history_independent": true
+      },
+      "carriers": [
+        {
+          "kind": "summary",
+          "response_paths": ["content[].thinking"],
+          "stream_events": ["content_block_delta.thinking_delta"],
+          "replay": "exact",
+          "meter": "display-only",
+          "note": "Thinking summary is display-only and never counted as the full chain of thought."
+        },
+        {
+          "kind": "encrypted",
+          "response_paths": ["content[].redacted_thinking.data"],
+          "stream_events": [],
+          "replay": "exact",
+          "meter": "provider-reported-bound",
+          "note": "Block shape {type redacted_thinking, data} pinned by first-party fixture; encrypted block is the continuation carrier."
+        }
+      ],
+      "streaming": {
+        "delta_mode": "append",
+        "live_meter": "unknown-until-terminal",
+        "terminal_reconciliation": "replace-transient"
+      },
+      "usage": {
+        "input_tokens": ["usage.input_tokens", "usage.cache_read_input_tokens"],
+        "output_tokens": ["usage.output_tokens"],
+        "reasoning_tokens": ["usage.output_tokens_details.thinking_tokens"],
+        "reasoning_relation": "subset-of-output",
+        "missing_reasoning": "unknown"
+      },
+      "source_ids": ["meta-messages", "meta-reasoning", "meta-prompt-caching", "meta-token-counting"],
+      "models": [
+        {
+          "id": "muse-spark-1.3-contributor",
+          "reasoning": "always",
+          "note": "Rejects thinking.type disabled at the model capability level; observed first-party 2026-09-03."
+        }
+      ],
+      "note": "First-party redacted blocks and groups observed 2026-09-03; none/max rejections surfaced single-attempt. Cache composition unconfirmed — run the repeated-prefix experiment."
+    }
+  ]
+}

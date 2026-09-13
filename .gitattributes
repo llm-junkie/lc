@@ -1,0 +1,69 @@
+# =============================================================================
+#  LC — Web client  (web/.gitattributes)
+# =============================================================================
+# Line endings are normalized to LF *in the repository*, on every platform.
+# Without this, a Windows checkout commits CRLF and a Linux checkout commits
+# LF, so the same file churns between contributors and every diff is noise.
+#
+# `eol=lf` also checks files out as LF in the working tree, so what you edit
+# matches what is stored. The two exceptions below are the files that genuinely
+# need CRLF.
+#
+# Companion: `.gitignore`, which travels with this directory when it is used as
+# a standalone repository.
+# =============================================================================
+
+# Detect text automatically; store and check out text as LF.
+* text=auto eol=lf
+
+# -----------------------------------------------------------------------------
+#  Windows shells
+# -----------------------------------------------------------------------------
+# cmd.exe requires CRLF. A lone LF can break multi-line blocks and label
+# parsing, and the failure is silent and intermittent rather than an error.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# -----------------------------------------------------------------------------
+#  Binary — never inspected for text, never normalized
+# -----------------------------------------------------------------------------
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.eot  binary
+*.pdf  binary
+*.zip  binary
+*.7z   binary
+*.rar  binary
+*.msi  binary
+*.exe  binary
+*.dll  binary
+*.dmg  binary
+*.AppImage binary
+*.deb  binary
+*.node binary
+
+# Supplied design-source asset: preserve its original bytes (including CRLF)
+# so repository checkouts remain identical to the accepted artwork.
+public/icons/whiteboard.svg -text
+
+# -----------------------------------------------------------------------------
+#  Generated / vendored — collapse in PR diffs and exclude from language stats
+# -----------------------------------------------------------------------------
+package-lock.json    linguist-generated=true -diff
+src-tauri/Cargo.lock  linguist-generated=true -diff
+THIRD_PARTY_LICENSES.md linguist-generated=true
+
+# Historical engineering records: kept verbatim, not counted as prose authored
+# for the product.
+docs/audits/**  linguist-documentation=true
+docs/**         linguist-documentation=true

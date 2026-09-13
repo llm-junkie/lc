@@ -1,0 +1,70 @@
+[package]
+name = "llm-client"
+version = "1.0.0"
+description = "LC"
+authors = ["LC"]
+edition = "2021"
+rust-version = "1.98"
+license = "Apache-2.0"
+
+[lib]
+name = "llm_client_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = [] }
+tauri-plugin-dialog = "2.7.3"
+tauri-plugin-http = { version = "2.6.0", features = ["unsafe-headers"] }
+tauri-plugin-opener = "2.5.5"
+tauri-plugin-window-state = "2.4.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "stream", "rustls", "gzip"] }
+tokio = { version = "1.53.1", features = ["full"] }
+sha2 = "0.11.0"
+pbkdf2 = "0.13.0"
+hmac = "0.13.0"
+tokio-util = { version = "0.7.19", features = ["rt"] }
+thiserror = "2.0.20"
+regex = "1.13.1"
+futures-util = "0.3.34"
+dirs = "6.0.0"
+base64 = "0.22.1"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+# PDF text extraction + pure-Rust page rendering (tiny-skia).
+# NEVER enable the `table-ml` feature: it pulls `pdfium-render`, which
+# ships a ~10 MB native binary per platform. Table detection uses the
+# geometric detector, which is on by default.
+pdf_oxide = { version = "0.3.77", default-features = false, features = ["rendering"] }
+# Require tinyvec 1.13.2 or newer for the `no_std` macro fixes following
+# the 1.13.0 compile failure (Lokathor/tinyvec#225).
+tinyvec = "1.13.2"
+walkdir = "2.5.0"
+globset = "0.4.20"
+aes-gcm = "0.11.1"
+rand = "0.10.2"
+hostname = "0.4.2"
+dark-light = "1.1.1"
+window-vibrancy = "0.6.0"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Threading", "Win32_System_SystemInformation", "Wdk_System_SystemServices"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = { version = "0.18.2", features = ["v3_24"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.189"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2.4.4"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

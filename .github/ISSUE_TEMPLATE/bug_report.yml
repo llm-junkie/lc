@@ -1,0 +1,112 @@
+name: Bug report
+description: Report a problem in LC, optionally with a redacted support report.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem.
+
+        **Please do not paste raw logs, screenshots of private conversations,
+        conversation exports, or network traces.** LC does not ask for them,
+        and they usually contain prompts, tool output, or credentials.
+
+        Instead, attach a **support report**: a local, redacted JSON file LC
+        generates for exactly this purpose. LC never uploads it — you review
+        the exact bytes and choose whether to share them.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what LC did instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did the problem appear?
+      options:
+        - Normal application window
+        - Safe Start recovery shell
+        - Both
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: support-report
+    attributes:
+      label: Support report (recommended)
+      description: |
+        **Settings → Support → Create support report**, or the same button in
+        the Safe Start recovery shell.
+
+        Review the preview, then **Save** the file and attach it here, or
+        **Copy** it into the box below.
+
+        The report is `lc-support-v2-YYYY-MM-DD.json`. It contains bounded,
+        redacted diagnostics only:
+
+        - LC version, runtime, OS family, and webview family;
+        - startup phase, storage schema versions, counts, and outcomes;
+        - provider protocol/API style/routing and endpoint *classes*
+          (`loopback`, `private-network`, `public-https`, `public-http`,
+          `invalid`) — never exact hosts;
+        - credential *configuration state* (`keychain-ref`,
+          `plaintext-fallback`, `not-configured`) — never a key or its name;
+        - search provider selection and resolution — never a query or result;
+        - provider/stream outcomes, cache counters, and bounded prefix
+          conclusions; and
+        - at most 64 structured diagnostic events.
+
+        It never contains conversations, prompts, generated text, tool
+        arguments or output, attachments, skill contents, search queries or
+        results, file paths, email addresses, API keys, headers, cookies,
+        cache or session keys, digests, stack traces, raw requests, or raw
+        provider responses.
+
+        Two optional switches are **off** every time the report window opens.
+        Turn them on only if a maintainer asks:
+
+        - **exact model identifiers** — adds the model id string;
+        - **sanitized error descriptions** — adds generic failure classes
+          (for example "Request failed with HTTP status 503"), never a
+          provider response body.
+
+        If a section could not be collected, `collection.sections` marks it
+        `unavailable` and `collection.failures` gives a bounded reason. That is
+        expected in Safe Start.
+      render: json
+    validations:
+      required: false
+
+  - type: input
+    id: lc-version
+    attributes:
+      label: LC version
+      description: Only needed if you are not attaching a support report.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I reviewed anything I pasted or attached and am willing to share it publicly.
+          required: true
+        - label: I did not include raw logs, conversation exports, or network traces.
+          required: true

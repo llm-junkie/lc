@@ -1,0 +1,230 @@
+name: Desktop release
+
+# Manual only, and deliberately light: build the installers and publish the
+# draft, nothing else. Preflight keeps only the two gates that are specific to
+# releasing — the tag/manifest version match and the dependency licence policy.
+#
+# THIS WORKFLOW RUNS NO TESTS. Validation lives in pre-release.yml ("Build
+# artifacts"), which runs the source checks and the full suite on all three
+# platforms before it produces binaries. Run that first and check the result;
+# tagging does not verify anything on your behalf.
+#
+# To cut a release, push the tag first, then start this workflow from the
+# Actions tab and select that tag under "Use workflow from" — the job reads
+# the version from github.ref_name, so it MUST run on the tag ref, not a
+# branch. The tag also needs this workflow file with workflow_dispatch on it.
+on:
+  # push:
+  #   tags:
+  #     - 'v*'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  preflight:
+    name: Release preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      # licenses:check shells out to `cargo metadata --locked`.
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.98.1
+
+      # Nothing in this job compiles Rust today, so these packages are strictly
+      # unused here. They stay anyway: the step costs ~40s once per release,
+      # and dropping it would make any future cargo step in this job fail at a
+      # pkg-config error instead of just working.
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Verify tag and manifest versions
+        run: node scripts/check-release-version.mjs "${GITHUB_REF_NAME}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The legal gate stays: a release that ships the wrong notices is a
+      # problem no later step catches, and this costs ~3 minutes.
+      - name: Verify releasable dependency licenses
+        run: npm run licenses:check
+
+  build:
+    name: ${{ matrix.name }}
+    needs: preflight
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            # Build on Tauri v2's oldest practical Ubuntu baseline so the
+            # resulting glibc requirement stays compatible with Ubuntu 22.04.
+            # No portable zip on Linux — the AppImage is the portable format
+            # (the raw binary needs system WebKitGTK and isn't self-contained).
+            platform: ubuntu-22.04
+            args: --bundles deb,appimage,rpm
+            rust-targets: ''
+          - name: Windows x64
+            platform: windows-latest
+            args: --bundles nsis,msi
+            rust-targets: ''
+            portable-platform: windows
+            portable-arch: x64
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            args: --target aarch64-apple-darwin --bundles app,dmg
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            rust-triple: aarch64-apple-darwin
+            # Match tauri-action's asset naming: darwin_aarch64
+            portable-platform: darwin
+            portable-arch: aarch64
+          - name: macOS Intel
+            platform: macos-latest
+            args: --target x86_64-apple-darwin --bundles app,dmg
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            rust-triple: x86_64-apple-darwin
+            # Match tauri-action's asset naming: darwin_x64
+            portable-platform: darwin
+            portable-arch: x64
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-downloads-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils rpm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Prepare production frontend and legal artifacts
+        run: npm run release:prepare
+
+      - name: Build installers and update the draft release
+        id: tauri
+        uses: tauri-apps/tauri-action@action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: LC ${{ github.ref_name }}
+          releaseBody: Automated draft. Validate every installer and configure platform signing before publication.
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generateReleaseNotes: true
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+          retryAttempts: 2
+          releaseAssetNamePattern: lc_[version]_[platform]_[arch][setup][ext]
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}
+      - name: Resolve app version
+        id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+
+      # tauri-action always packages the macOS .app into a .app.tar.gz and
+      # uploads it (there is no option to disable this). We ship the .dmg plus
+      # our own -portable.zip instead, so remove the redundant .app.tar.gz.
+      - name: Remove tauri-action .app.tar.gz asset
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete-asset "${{ github.ref_name }}" "lc_${{ steps.version.outputs.version }}_darwin_${{ matrix.portable-arch }}.app.tar.gz" --yes || true
+
+      # Portable single-file archives attached to the same draft release:
+      #   Windows -> zip of the raw binary
+      #   macOS   -> zip of the .app bundle (the portable unit on macOS)
+      #   Linux   -> no zip; the AppImage is the portable format
+      - name: Create portable archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path portable | Out-Null
+          Compress-Archive -Path src-tauri/target/release/llm-client.exe -DestinationPath "portable/lc_${{ steps.version.outputs.version }}_${{ matrix.portable-platform }}_${{ matrix.portable-arch }}-portable.zip"
+
+      - name: Create portable archive (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/portable"
+          cd "src-tauri/target/${{ matrix.rust-triple }}/release/bundle/macos"
+          zip -r "$GITHUB_WORKSPACE/portable/lc_${{ steps.version.outputs.version }}_${{ matrix.portable-platform }}_${{ matrix.portable-arch }}-portable.zip" "LLM Client.app"
+
+      - name: Attach portable archives to release
+        # Linux produces no portable zip (the AppImage covers it), so the glob
+        # would match nothing there.
+        if: runner.os != 'Linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" portable/lc_*-portable.zip --clobber
+      - name: Verify staged legal resources
+        run: node scripts/check-release-licenses.mjs --artifacts
+
+      - name: Normalize artifact paths for provenance
+        id: artifacts
+        if: github.event.repository.private == false
+        shell: bash
+        env:
+          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: |
+          node -e "const fs=require('node:fs');const paths=JSON.parse(process.env.ARTIFACT_PATHS);if(!Array.isArray(paths)||paths.length===0)throw new Error('Tauri returned no artifacts');fs.appendFileSync(process.env.GITHUB_OUTPUT,'paths<<EOF\n'+paths.join('\n')+'\nEOF\n')"
+
+      - name: Attest build provenance
+        if: github.event.repository.private == false
+        uses: actions/attest@v4.2.2
+        with:
+          subject-path: ${{ steps.artifacts.outputs.paths }}

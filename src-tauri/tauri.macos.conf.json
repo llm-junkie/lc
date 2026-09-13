@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "LC",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 432,
+        "minHeight": 304,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "transparent": true,
+        "dragDropEnabled": true,
+        "visible": false,
+        "macOSPrivateApi": true
+      }
+    ]
+  }
+}
