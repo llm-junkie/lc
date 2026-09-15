@@ -2928,7 +2928,7 @@ name = "llm-client"
 version = "1.0.0"
 dependencies = [
  "aes-gcm",
- "base64 0.22.1",
+ "base64 0.23.1",
  "dark-light",
  "dirs 6.0.0",
  "futures-util",
