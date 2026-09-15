@@ -17,7 +17,8 @@ enable `engine-strict`.
 | `Build artifacts` (`pre-release.yml`) | Manual | Runs source gates and both test suites on Linux, Windows, and macOS.<br>Builds four installer and portable artifact sets.<br>Does not create a GitHub release. |
 | `Desktop release` | Manual, on a selected `v*` tag reference | Verifies the tag, manifests, and dependency-license policy.<br>Builds four platform artifact sets and attaches them to a draft GitHub release.<br>Runs no tests.<br>The release procedure requires a completed `Build artifacts` run.<br>The workflow does not verify that run. |
 
-Dependabot checks npm, Cargo, and GitHub Actions every two weeks. The npm and Cargo
+Dependabot checks npm, Cargo, and GitHub Actions every Monday at 06:00, 06:30,
+and 07:00 respectively, in the Europe/Brussels timezone. The npm and Cargo
 groups contain minor and patch updates. Their major updates remain separate for
 deliberate review. The GitHub Actions group contains every update. Therefore,
 action major updates can use the same grouped pull request.
@@ -65,7 +66,7 @@ pull-request event. Its trigger is commented out, so the job remains inactive
 in a public repository.
 
 Manual CI, npm audits, RustSec audits, and draft packaging have no
-public-repository condition. Dependabot checks three ecosystems every two weeks.
+public-repository condition. Dependabot checks three ecosystems every Monday.
 
 ## Recommended repository rules
 

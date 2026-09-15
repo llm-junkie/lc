@@ -4,8 +4,9 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: cron
-      cronjob: 'every 2 weeks on monday at 06:00'
+      interval: weekly
+      day: monday
+      time: '06:00'
       timezone: Europe/Brussels
     open-pull-requests-limit: 10
     groups:
@@ -15,8 +16,9 @@ updates:
   - package-ecosystem: cargo
     directory: /src-tauri
     schedule:
-      interval: cron
-      cronjob: 'every 2 weeks on monday at 06:30'
+      interval: weekly
+      day: monday
+      time: '06:30'
       timezone: Europe/Brussels
     open-pull-requests-limit: 10
     groups:
@@ -26,8 +28,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: cron
-      cronjob: 'every 2 weeks on monday at 07:00'
+      interval: weekly
+      day: monday
+      time: '07:00'
       timezone: Europe/Brussels
     open-pull-requests-limit: 5
     # Numeric dtolnay/rust-toolchain refs are published before the matching
