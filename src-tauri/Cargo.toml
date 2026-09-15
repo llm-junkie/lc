@@ -47,7 +47,7 @@ globset = "0.4.20"
 aes-gcm = "0.11.1"
 rand = "0.10.2"
 hostname = "0.4.2"
-dark-light = "1.1.1"
+dark-light = "3.0.0"
 window-vibrancy = "0.6.0"
 
 [target.'cfg(windows)'.dependencies]
