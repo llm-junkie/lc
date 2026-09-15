@@ -480,6 +480,10 @@ injected as a synthetic user turn. Two invariants hold:
   output, not a new user request. One unlabelled injection disrupted a run.
   Therefore, the label is required.
 
+Image lookup also checks the tool result's owning assistant message.
+An older turn that reuses the provider call ID cannot receive current images or delivery warnings.
+This applies with Tool History enabled or disabled.
+
 If delivery is blocked by model capability or a cache miss,
 `appendImageDeliveryWarning()` updates the persisted result's structured
 `warning` field for that model request. It does not append prose after the JSON

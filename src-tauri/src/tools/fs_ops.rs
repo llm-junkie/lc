@@ -1905,7 +1905,7 @@ fn read_single_image(
     // Phase 3.4: reject oversized images before reading.
     if original_size > max_bytes {
         return Err(ToolError::Io(format!(
-            "image too large: {} bytes > max {} bytes. Use a smaller max_bytes or re-encode.",
+            "The source image is {} bytes. max_bytes permits {} bytes. Increase max_bytes within the 50 MiB limit, or use a smaller source image.",
             original_size, max_bytes
         )));
     }
@@ -2774,6 +2774,130 @@ mod tests {
         assert!(build_analyze_warning(10, 10, 0, 10).is_none());
     }
 
+    #[tokio::test]
+    async fn shared_file_fixtures_agree_across_read_search_and_metadata_tools() {
+        let root = tempdir();
+        let utf16 = [
+            vec![0xff, 0xfe],
+            "needle".encode_utf16().flat_map(u16::to_le_bytes).collect(),
+        ]
+        .concat();
+        for (name, bytes, read_code, skipped, encoding) in [
+            (
+                ".hidden.txt",
+                b"needle\r\nsecond\n".to_vec(),
+                None,
+                None,
+                "utf-8",
+            ),
+            ("marked.txt", utf16, None, None, "utf-16le"),
+            (
+                "binary.txt",
+                b"needle\0data".to_vec(),
+                Some("binary_detected"),
+                Some("skipped_binary"),
+                "",
+            ),
+            (
+                "large.txt",
+                vec![b'x'; 1_048_577],
+                Some("too_large"),
+                Some("skipped_large"),
+                "",
+            ),
+        ] {
+            let path = root.join(name);
+            std::fs::write(&path, &bytes).unwrap();
+            let args = serde_json::json!({"paths":[path], "allowed_roots":[root]});
+            let read = tool_read_file(serde_json::from_value(args.clone()).unwrap())
+                .await
+                .unwrap();
+            let stat = tool_stat(serde_json::from_value(args).unwrap()).unwrap();
+            assert_eq!(stat["results"][0]["exists"], true);
+            assert_eq!(stat["results"][0]["size_bytes"], bytes.len());
+            let search = super::super::grep::tool_grep(
+                serde_json::from_value(serde_json::json!({
+                    "searches":[{"path":path,"pattern":"needle"}], "allowed_roots":[root],
+                }))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+            if let Some(code) = read_code {
+                assert_eq!(read["results"][0]["error_code"], code, "{name}");
+                assert_eq!(search["results"][0][skipped.unwrap()], 1, "{name}");
+            } else {
+                assert!(read["results"][0]["content"]
+                    .as_str()
+                    .unwrap()
+                    .contains("needle"));
+                assert_eq!(read["results"][0]["encoding"], encoding);
+                assert_eq!(search["results"][0]["matches"].as_array().unwrap().len(), 1);
+                assert_eq!(
+                    search["results"][0]["files_transcoded"],
+                    usize::from(encoding == "utf-16le")
+                );
+            }
+            let listed = tool_list_dir(
+                serde_json::from_value(serde_json::json!({
+                    "paths":[root], "include_hidden":true, "allowed_roots":[root],
+                }))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+            assert!(listed["results"][0]["entries"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|entry| entry["name"] == name));
+            let found = super::super::glob::tool_glob_files(
+                serde_json::from_value(serde_json::json!({
+                    "root":root, "pattern":name, "include_hidden":true, "allowed_roots":[root],
+                }))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+            assert_eq!(found["matches"].as_array().unwrap().len(), 1);
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn image_input_limit_remedy_replays_with_a_larger_byte_limit() {
+        let root = tempdir();
+        let path = root.join("bounded.png");
+        image::RgbImage::new(2, 2).save(&path).unwrap();
+        let size = std::fs::metadata(&path).unwrap().len();
+        let request = |limit| ReadImageRequest {
+            paths: vec![path.to_string_lossy().into_owned()],
+            max_bytes: Some(limit),
+            encoding: Some("low_jpeg".to_string()),
+            downscale: 0.5,
+            allowed_roots: Some(roots_from(&root)),
+        };
+        let initial = tool_read_image(request(size - 1)).await.unwrap();
+        let smaller = tool_read_image(request(size - 2)).await.unwrap();
+        let recovered = tool_read_image(request(size)).await.unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
+        assert!(smaller["images"][0]["error"].as_str().is_some());
+        assert!(recovered["images"][0].get("error").is_none());
+        assert!(recovered["images"][0]["data_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/jpeg;base64,"));
+        assert_eq!(
+            initial["images"][0]["path"],
+            path.to_string_lossy().to_string()
+        );
+        assert_eq!(initial["images"][0]["error"], format!(
+            "io_error: The source image is {size} bytes. max_bytes permits {} bytes. Increase max_bytes within the 50 MiB limit, or use a smaller source image.",
+            size - 1,
+        ));
+    }
+
     #[test]
     fn vision_response_text_requires_real_text_for_every_supported_shape() {
         let cases = [
@@ -2994,6 +3118,103 @@ mod tests {
             .unwrap()
             .contains("Vision model response contained no text"));
 
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn analyze_images_response_shapes_preserve_content_and_control_fields() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let root = tempdir();
+        let path = root.join("response-shape.png");
+        image::RgbImage::new(2, 2).save(&path).unwrap();
+        for (variant, style) in [
+            ("anthropic", "chat"),
+            ("openai", "responses"),
+            ("lm-studio", "chat"),
+            ("openai", "chat"),
+        ] {
+            for case in ["text", "blank", "missing", "malformed", "http_error"] {
+                let text = if case == "text" {
+                    "A black square."
+                } else {
+                    " \n\t"
+                };
+                let body = match case {
+                    "missing" => "{}".to_string(),
+                    "malformed" => "{".to_string(),
+                    "http_error" => "Provider unavailable.".to_string(),
+                    _ => match (variant, style) {
+                        ("anthropic", _) => serde_json::json!({"content":[{"type":"text","text":text}]}),
+                        ("openai", "responses") => serde_json::json!({"output":[{"type":"message","content":[{"type":"output_text","text":text}]}]}),
+                        ("lm-studio", _) => serde_json::json!({"output":[{"type":"message","content":text}]}),
+                        _ => serde_json::json!({"choices":[{"message":{"content":text}}]}),
+                    }.to_string(),
+                };
+                let status = if case == "http_error" {
+                    "503 Service Unavailable"
+                } else {
+                    "200 OK"
+                };
+                let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let server_url = format!("http://{}", listener.local_addr().unwrap());
+                let server = tokio::spawn(async move {
+                    let (mut socket, _) = listener.accept().await.unwrap();
+                    let mut request = [0_u8; 8192];
+                    let _ = socket.read(&mut request).await.unwrap();
+                    let response = format!("HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+                    socket.write_all(response.as_bytes()).await.unwrap();
+                });
+                let result = tool_analyze_images(AnalyzeImagesRequest {
+                    paths: vec![path.to_string_lossy().into_owned()],
+                    encoding: None,
+                    max_bytes: None,
+                    call_id: None,
+                    group_id: None,
+                    downscale: 1.0,
+                    allowed_roots: Some(roots_from(&root)),
+                    server_url,
+                    model: "vision-model".to_string(),
+                    api_key: None,
+                    api_variant: Some(variant.to_string()),
+                    api_style: Some(style.to_string()),
+                    request_headers: Vec::new(),
+                    system_prompt: "Describe the image.".to_string(),
+                    user_instruction: None,
+                    max_tokens: None,
+                })
+                .await
+                .unwrap();
+                server.await.unwrap();
+                assert_eq!(result["analyzed_count"], 1, "{variant}/{style}/{case}");
+                assert_eq!(result["processed_count"], 1);
+                assert_eq!(
+                    result["images"][0]["path"],
+                    path.to_string_lossy().to_string()
+                );
+                if case == "text" {
+                    assert_eq!(result["analyzed"], true);
+                    assert_eq!(result["described_count"], 1);
+                    assert!(result["description"].as_str().unwrap().contains(text));
+                    assert!(result["images"][0].get("error").is_none());
+                } else {
+                    assert_eq!(result["analyzed"], false);
+                    assert_eq!(result["described_count"], 0);
+                    assert!(result["description"].is_null());
+                    let error = result["images"][0]["error"].as_str().unwrap();
+                    let expected = match case {
+                        "malformed" => "response parse failed",
+                        "http_error" => "returned HTTP 503",
+                        _ => "response contained no text",
+                    };
+                    assert!(
+                        error.contains(expected),
+                        "{variant}/{style}/{case}: {error}"
+                    );
+                }
+            }
+        }
         std::fs::remove_dir_all(root).unwrap();
     }
 

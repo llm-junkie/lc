@@ -59,6 +59,8 @@ export const globFiles: ToolHandler<Input, GlobFilesOutput> = {
     'Possible limits are result count, visited entries, and deadline.\n' +
     'For the result limit, LC sets truncated only after it finds one more match.\n' +
     'Therefore, truncated=false means that the listing is complete.\n' +
+    'A traversal error fails the call and names the affected path.\n' +
+    'Check that this path exists and is readable, or choose another root.\n' +
     `${GREP_COMPLETENESS_CONTRACT}\n` +
     'Cancellation returns a normal result.\n' +
     'That result preserves matches collected before cancellation.\n' +

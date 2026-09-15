@@ -25,7 +25,7 @@ The implementation state on 2026-08-31 is:
 - Phase 4 and Phase 5 have not started.
 
 The baseline fixed surface is 8,547 tokens. The pre-Whiteboard pilot fixture is
-6,956 tokens. The current Whiteboard fixture is 7,471 tokens. Exact values live
+6,956 tokens. The current Whiteboard fixture is 7,499 tokens. Exact values live
 in `tool-guidance-token.test.ts`. LC does not remove safety guidance to meet a
 payload target.
 
@@ -35,7 +35,7 @@ payload target.
 
 Before tiering, the Windows reference fixture used 8,547 tokens. The
 pre-Whiteboard pilot fixture used 6,956 tokens. The current Whiteboard fixture
-uses 7,471 tokens. The reference fixture uses two workspace roots. Root count
+uses 7,499 tokens. The reference fixture uses two workspace roots. Root count
 changes the generated system prompt but does not change the tool payload.
 
 Token counts are not additive. Token boundaries change when strings are joined
@@ -671,7 +671,7 @@ These values are operational bounds and evaluation targets:
 | Ordinary tool description | Prefer at most 120 tokens |
 | Exceptional tool description | At most 250 tokens with justification |
 | Complete `lc_tool_help` definition | At most 220 tokens |
-| Complete system and tool payload | 7,471 tokens for the current Whiteboard fixture |
+| Complete system and tool payload | 7,499 tokens for the current Whiteboard fixture |
 | Basic help result | At most 400 tokens |
 | One advanced help section | At most 300 tokens |
 | Complete serialized help result | At most 16 KiB and preferably 1,000 tokens |
@@ -680,8 +680,9 @@ These values are operational bounds and evaluation targets:
 | Name suggestions | At most 3 |
 
 The pilot reduced the fixed surface from 8,547 tokens to 6,956 tokens. The
-current Whiteboard fixture is 7,471 tokens. The pilot keeps nonpilot
-descriptions unchanged until the external model gate passes.
+current Whiteboard fixture is 7,499 tokens. The glob traversal-error guidance
+adds 28 tokens to the earlier 7,471-token fixture. This correction does not
+expand the pilot's guidance tier rollout.
 
 The complete payload assertion is authoritative. Per-tool ceilings are separate
 assertions. The two measurements cannot be reconciled arithmetically.

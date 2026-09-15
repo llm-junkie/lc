@@ -226,7 +226,10 @@ pub async fn tool_glob_files(req: GlobRequest) -> Result<ToolOk, ToolError> {
             }
             let entry = match entry {
                 Ok(e) => e,
-                Err(_) => { visited += 1; continue; },
+                Err(error) => return Err(ToolError::Io(format!(
+                    "Glob traversal failed at {}. Check that this path exists and is readable, or choose another root. Native error: {}",
+                    error.path().unwrap_or(&search_root).display(), error,
+                ))),
             };
             visited += 1;
 
@@ -306,6 +309,70 @@ mod tests {
     fn brace_expansion_basic() {
         let result = expand_braces("file.{ts,js}");
         assert_eq!(result, vec!["file.ts", "file.js"]);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn traversal_error_cannot_claim_a_complete_listing() {
+        let root = tempdir();
+        let denied = root.join("locked");
+        std::fs::create_dir(&denied).unwrap();
+        std::fs::write(denied.join("hidden.txt"), "content").unwrap();
+        let identity = std::process::Command::new("whoami").output().unwrap();
+        assert!(identity.status.success());
+        let identity = String::from_utf8(identity.stdout).unwrap();
+        let identity = identity.trim();
+        let deny = std::process::Command::new("icacls")
+            .arg(&denied)
+            .args(["/deny", &format!("{identity}:(RD)")])
+            .output()
+            .unwrap();
+        assert!(
+            deny.status.success(),
+            "fixture must install its directory read denial"
+        );
+        let walker_errors = walkdir::WalkDir::new(&root)
+            .into_iter()
+            .filter(|entry| entry.is_err())
+            .count();
+        let request = || GlobRequest {
+            pattern: "**/*.txt".into(),
+            root: root.to_string_lossy().into(),
+            allowed_roots: vec![root.to_string_lossy().into()],
+            include_hidden: None,
+            max_results: None,
+            call_id: None,
+            group_id: None,
+            max_visited_entries: None,
+            deadline_ms: None,
+            ignore_dirs: None,
+        };
+        let result = tool_glob_files(request()).await;
+        let restore = std::process::Command::new("icacls")
+            .arg(&denied)
+            .args(["/remove:d", identity])
+            .output()
+            .unwrap();
+        assert!(
+            restore.status.success(),
+            "fixture must restore directory access"
+        );
+        let recovered = tool_glob_files(request()).await;
+        std::fs::remove_dir_all(&root).unwrap();
+        assert!(walker_errors > 0, "fixture must prevent traversal");
+        let error = result.expect_err("a traversal error must not claim completeness");
+        assert!(matches!(error, ToolError::Io(_)));
+        let message = error.to_string();
+        assert!(message.contains(&denied.to_string_lossy().to_string()));
+        assert!(message
+            .contains("Check that this path exists and is readable, or choose another root."));
+        let recovered = recovered.unwrap();
+        assert_eq!(recovered["truncated"], false);
+        assert_eq!(recovered["matches"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            recovered["matches"][0]["path"],
+            denied.join("hidden.txt").to_string_lossy().to_string()
+        );
     }
 
     #[test]

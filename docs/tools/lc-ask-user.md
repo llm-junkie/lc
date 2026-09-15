@@ -36,7 +36,7 @@ absolute attention cap. The existing result envelope, provider tool-message
 protocol, and generic Tool History stubbing remain unchanged.
 
 The current shared fixture records a 552-token two-root system prompt. The
-complete fixed prompt and tool surface is 7,471 tokens. The
+complete fixed prompt and tool surface is 7,499 tokens. The
 generated LC Tool Cheat Sheet is 889 tokens. `tool-guidance-token.test.ts` owns
 these values.
 

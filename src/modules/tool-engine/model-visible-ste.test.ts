@@ -753,3 +753,17 @@ test('edit descriptions disclose the native match-location cap', () => {
   assert.ok(definition);
   assert.match(definition.function.description, /match_lines identifies at most 20 matching locations\./);
 });
+
+test('checks the native glob traversal remedy', () => {
+  const source = readPdfNativeText('src-tauri/src/tools/glob.rs', 'utf8');
+  const literal = source.match(/"(Glob traversal failed at [^"\r\n]+)"/);
+  assert.ok(literal);
+  assertStructuralSte('native glob traversal error', literal[1]);
+});
+
+test('checks the native image input-limit remedy', () => {
+  const source = readPdfNativeText('src-tauri/src/tools/fs_ops.rs', 'utf8');
+  const literal = source.match(/"(The source image is [^"\r\n]+)"/);
+  assert.ok(literal);
+  assertStructuralSte('native image input limit', literal[1]);
+});

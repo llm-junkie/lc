@@ -391,6 +391,51 @@ mod tests {
     use super::{tool_edit, EditFileEntry, EditRequest};
 
     #[tokio::test]
+    async fn native_edit_preserves_line_endings_and_meaningful_replacements() {
+        let root = std::env::temp_dir().join(format!(
+            "lc-edit-contract-{}-{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        for (name, before, old, new, expected) in [
+            ("lf.txt", "first\nneedle\n", "needle", "β", "first\nβ\n"),
+            (
+                "crlf.txt",
+                "first\r\nneedle\r\n",
+                "first\nneedle",
+                "one\ntwo",
+                "one\r\ntwo\r\n",
+            ),
+            (
+                "bom.txt",
+                "\u{feff}first\nneedle",
+                "needle",
+                "",
+                "\u{feff}first\n",
+            ),
+            ("space.txt", "first  needle", "needle", " \t", "first   \t"),
+        ] {
+            let path = root.join(name);
+            std::fs::write(&path, before).unwrap();
+            let result = tool_edit(EditRequest {
+                files: vec![EditFileEntry {
+                    path: path.to_string_lossy().into_owned(),
+                    old_string: old.into(),
+                    new_string: new.into(),
+                }],
+                create_if_missing: None,
+                allowed_roots: Some(vec![root.to_string_lossy().into_owned()]),
+            })
+            .await
+            .unwrap();
+            assert_eq!(result["results"][0]["replaced"], true, "{name}: {result}");
+            assert_eq!(std::fs::read(&path).unwrap(), expected.as_bytes(), "{name}");
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
     async fn edit_batch_limit_rejects_cap_plus_one_before_io() {
         let error = tool_edit(EditRequest {
             files: (0..=super::super::fs_ops::FILESYSTEM_BATCH_MAX_ENTRIES)

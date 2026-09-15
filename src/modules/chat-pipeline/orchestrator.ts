@@ -693,10 +693,14 @@ async function runStream(
   if (systemContent) {
     reqMessages.push({ role: 'system', content: systemContent });
   }
+  let toolResultAssistantId: string | undefined;
   for (let idx = 0; idx < hydrated.length; idx++) {
     const { m, atts } = hydrated[idx];
     // Do not insert a synthetic user turn between sibling tool results.
-    if (m.role !== 'tool') flushPendingImages();
+    if (m.role !== 'tool') {
+      flushPendingImages();
+      toolResultAssistantId = m.role === 'assistant' ? m.id : undefined;
+    }
     const content = buildMessageContent(m.content, atts);
     const msg: ChatMessage = { role: m.role, content };
     let useCanonicalReasoning = false;
@@ -825,7 +829,11 @@ async function runStream(
     // — their API rejects `image_url` content parts with a 400
     // error.  Append a tool message warning the model to use
     // `analyze: true` (sub-agent text description) instead.
-    if (m.role === 'tool' && m.tool_call_id) {
+    if (
+      m.role === 'tool'
+      && m.tool_call_id
+      && toolResultAssistantId === owner.assistantMessageId
+    ) {
       const batchId = extractImageBatchId(owner, m.tool_call_id);
       const images = batchId ? getImageBatch(batchId) : undefined;
       if (batchId) {

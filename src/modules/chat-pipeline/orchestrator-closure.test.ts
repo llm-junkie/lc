@@ -350,6 +350,78 @@ function stopStreamResponse(content = 'done'): Response {
   return new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } });
 }
 
+for (const historyEnabled of [false, true]) {
+  it(`attaches reused image call IDs to the current turn with Tool History ${historyEnabled ? 'enabled' : 'disabled'}`, async () => {
+    const fixture = createFixture({
+      enabled: true, file_io_enabled: true, tool_history_enabled: historyEnabled,
+      allowed_roots: ['D:/images'], dir_permissions: { 'D:/images': ['lc_read_image'] },
+    });
+    const original = HANDLERS_BY_NAME.get('lc_read_image');
+    assert.ok(original);
+    const callId = 'reused-image-call';
+    const oldContent = '{"images":[],"warning":null}';
+    const current = useConversations.getState().byId[fixture.conversationId]!;
+    useConversations.setState({
+      byId: {
+        ...useConversations.getState().byId,
+        [fixture.conversationId]: {
+          ...current,
+          messages: [
+            { id: 'prior-image-user', role: 'user', content: 'previous question', createdAt: 0 },
+            {
+              id: 'prior-image-assistant', role: 'assistant', content: '', createdAt: 0,
+              tool_calls: [{ id: callId, name: 'lc_read_image', arguments: '{"paths":["D:/images/old.png"]}', created_at: 0 }],
+            },
+            { id: 'prior-image-result', role: 'tool', tool_call_id: callId, content: oldContent, createdAt: 0 },
+            ...current.messages,
+          ],
+        },
+      },
+    });
+    useAppModels.getState().setMetadataOverride(fixture.profile.id, 'closure-model', { v: true });
+    HANDLERS_BY_NAME.set('lc_read_image', {
+      ...original,
+      run: (input, ctx) => original.run(input, {
+        ...ctx,
+        sandbox: {
+          ...ctx.sandbox,
+          readImage: async () => ({ images: [{
+            path: 'D:/images/current.png', mime: 'image/png', data_url: 'data:image/png;base64,AAAA',
+            size_bytes: 3, original_size_bytes: 3, encoding: 'original', truncated: false,
+          }] }),
+        },
+      }),
+    });
+    let wireMessages: ChatMessage[] = [];
+    chatPostResponse = (init) => {
+      wireMessages = JSON.parse(String(init?.body)).messages;
+      return stopStreamResponse();
+    };
+    try {
+      await runStreamWithTools(fixture.conversationId, new AbortController().signal, fixture.options(clientWith(async () => result({
+        finish_reason: 'tool_calls',
+        tool_calls: [{ id: callId, type: 'function', function: {
+          name: 'lc_read_image', arguments: '{"paths":["D:/images/current.png"]}',
+        } }],
+      }))));
+      const imageTurns = wireMessages.flatMap((message, index) =>
+        Array.isArray(message.content) && message.content.some((part) => part.type === 'image_url') ? [index] : []);
+      assert.equal(imageTurns.length, 1);
+      const currentResultIndex = wireMessages.findLastIndex((message) =>
+        message.role === 'tool' && message.tool_call_id === callId);
+      assert.ok(imageTurns[0] > currentResultIndex, 'current pixels must follow the current tool result, not its historical ID collision');
+      const persisted = useConversations.getState().byId[fixture.conversationId]!.messages;
+      assert.equal(persisted.find((message) => message.id === 'prior-image-result')?.content, oldContent);
+      for (const message of persisted) assert.doesNotMatch(message.content, /_image_batch_id|images_delivered|data:image/);
+    } finally {
+      useAppModels.getState().removeMetadataOverride(fixture.profile.id, 'closure-model');
+      chatPostResponse = null;
+      HANDLERS_BY_NAME.set('lc_read_image', original);
+      fixture.cleanup();
+    }
+  });
+}
+
 it('reports a removed profile to legacy callers instead of returning silently', async () => {
   const fixture = createFixture();
   let streamCalls = 0;

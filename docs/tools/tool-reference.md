@@ -206,7 +206,12 @@ buffers pixel delivery for five minutes. The cache holds eight batches and 64
 MiB of data URLs. A large batch or concurrent reads can evict a batch before
 the next model request.
 
-If this occurs, LC sets `warning` to state that it sent no image. The warning
+Each generation retains at most three batches and 32 MiB.
+Under global pressure, LC removes the oldest batch from an owner with multiple batches.
+If all owners have one batch, LC rejects the newest admission and reports the same delivery warning.
+Cancelled reads discard late pixels before cache admission.
+
+If expiry, eviction, or rejected admission prevents delivery, LC sets `warning` to state that it sent no image. The warning
 tells the model to call `lc_read_image` again with fewer paths, a smaller
 `downscale`, or JPEG encoding. If the chat model cannot process images,
 `analyze:false` returns `description: null` and a capability warning. Use
@@ -229,7 +234,9 @@ provider. LC adds the path back only when it labels the returned description for
 the calling model.
 
 **Input limits:** The default is 10 MiB per image. You can increase the limit
-to 50 MiB. LC rejects decoded images above 100 megapixels or 16,384 pixels in
+to 50 MiB. The byte limit applies to the source file before downscaling or
+output encoding. A size rejection requires a larger `max_bytes` within that
+limit, or a smaller source file. LC rejects decoded images above 100 megapixels or 16,384 pixels in
 either dimension. These checks occur before downscaling. LC has **no
 minimum-dimension check**. A 3×2 px image can return a normal success entry.
 
@@ -681,6 +688,10 @@ cancellation. Limits include result count and visited entries. Cancellation
 returns a normal `GlobFilesResult` with `truncated: true`. It preserves matches
 collected before traversal stopped. It does not replace the partial result with
 an aborted error.
+
+A traversal error fails the complete call with an I/O error. The error names
+the affected path. Check that this path exists and is readable, or choose
+another root. LC does not return a successful listing when traversal fails.
 
 Results include files and directories. Inspect `is_dir`.
 

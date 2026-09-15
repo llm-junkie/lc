@@ -160,6 +160,16 @@ application-wide side effects share explicit coordinators:
 - Image delivery mappings and analysis batches are generation-scoped. Bounded
   global admission is fair, and terminal cleanup disposes only the matching
   generation's mappings and cache entries.
+
+  Ordinary image delivery retains at most three batches and 32 MiB per generation.
+  Under global pressure, LC removes the oldest batch from an owner with multiple batches.
+  If every owner has one batch, LC rejects the newest admission.
+  This protects each admitted owner's last batch from competing generations.
+
+  Expiry and that owner's own limits can still remove its last batch.
+  A cancelled native image read cannot restore cache entries after terminal cleanup.
+  Request assembly matches image results to the owning assistant before using a provider call ID.
+  An older turn that reuses that ID cannot receive current images or delivery warnings.
 - Model-detail discovery uses a bounded 32-entry, 60-second successful-result
   cache with shared in-flight work. Callers can cancel independently. The
   shared request is aborted only after its final waiter leaves.

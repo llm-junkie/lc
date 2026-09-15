@@ -166,7 +166,7 @@ const MAX_BATCHES_PER_GENERATION = 3;
 const MAX_BYTES_PER_GENERATION = 32 * 1024 * 1024;
 const TTL_MS = 5 * 60 * 1000; // 5-minute TTL (Phase 3.4)
 
-/** Module-level cache, insertion order = eviction order (oldest first). */
+/** Module-level cache. Insertion order selects the oldest surplus batch. */
 const imageBatchCache = new Map<string, CachedBatch>();
 
 /**
@@ -221,13 +221,23 @@ function evict(): void {
     stats.count -= 1;
     stats.bytes -= batch.bytes;
   }
-  // Size-based eviction.
+  // Keep each admitted owner's last batch when global limits require eviction.
+  // Remove the oldest surplus batch first. If every owner has only one batch,
+  // reject the newest admission instead of removing a sibling's last batch.
   let total = 0;
   for (const b of imageBatchCache.values()) total += b.bytes;
-  for (const [id, b] of imageBatchCache) {
-    if (imageBatchCache.size <= MAX_CACHED_BATCHES && total <= MAX_CACHED_BYTES) break;
+  while (imageBatchCache.size > MAX_CACHED_BATCHES || total > MAX_CACHED_BYTES) {
+    const entries = [...imageBatchCache.entries()];
+    const candidate = entries.find(([, batch]) =>
+      ownerStats.get(`${batch.conversationId}\0${batch.generationId}`)!.count > 1,
+    ) ?? entries.at(-1);
+    if (!candidate) break;
+    const [id, batch] = candidate;
     imageBatchCache.delete(id);
-    total -= b.bytes;
+    const stats = ownerStats.get(`${batch.conversationId}\0${batch.generationId}`)!;
+    stats.count -= 1;
+    stats.bytes -= batch.bytes;
+    total -= batch.bytes;
   }
 }
 
@@ -486,6 +496,11 @@ export const readImage: ToolHandler<ReadImageInput, ReadImageOutput> = {
       max_bytes: input.max_bytes,
       allowed_roots: ctx.config.allowedRoots,
     });
+    // Native image reads can finish after terminal cleanup. Discard late pixels
+    // before they can recreate cache entries for the cancelled generation.
+    if (ctx.signal.aborted) {
+      throw { code: 'Aborted', message: 'Operation cancelled by user.' };
+    }
 
     // Phase 3.4: bind cache entries to conversation + call ID for
     // targeted disposal on terminal success/error/abort.

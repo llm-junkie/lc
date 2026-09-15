@@ -149,6 +149,10 @@ machine-readable truncation or drop signal. Counts or warning text tell the
 model how to recover. A hard rejection returns the applicable limit. Neither
 path can silently present a partial result as complete.
 
+For `lc_glob_files`, a traversal error fails the complete call. The error names
+the affected path and asks the caller to check access or choose another root.
+The tool does not silently skip unreadable directories and report a complete listing.
+
 **Complete results have a serialized byte limit.** The default is 4 MiB of
 UTF-8. `lc_read_file` and `lc_web_fetch` use 64 MiB. `lc_run_shell` uses 16 MiB.
 The runner measures the exact JSON result after the handler returns.
@@ -244,7 +248,7 @@ encoding failures name the required user action.
 
 | Failure | Response shape | Self-correctable? |
 |---------|---------------|-------------------|
-| File too large or incomplete read | `{ path, error: "image too large…", truncated: false }` | ✅ Path echoed. LC never returns corrupt or truncated image bytes as a data URL. |
+| File too large or incomplete read | `{ path, error, truncated: false }` | ✅ Path echoed. A size error states the source size and `max_bytes` limit. Increase the limit within 50 MiB or use a smaller source image. LC returns no incomplete image bytes. |
 | SVG source | `{ path, error: "svg is vector markup…lc_read_file" }` | ✅ Names the format and the tool that reads it |
 | TIFF or ICO source | `{ path, error: "…not supported by this build…" }` | ✅ Names the format instead of calling it undetermined |
 | Any other unreadable format | `{ path, error: "image decode failed (…). Supported formats are png, jpeg, gif, webp, and bmp." }` | ✅ Lists what would work |

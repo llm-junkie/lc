@@ -430,6 +430,11 @@ in the tool result. The data-URL limit is eight batches or 64 MiB. If expiry or
 eviction removes a batch before delivery, LC tells the model that no image was
 sent. It gives a literal retry with fewer paths, downscaling, or JPEG encoding.
 
+Each generation retains at most three batches and 32 MiB of data URLs.
+Global eviction removes the oldest batch from a generation with multiple batches.
+If every generation has one batch, LC rejects the newest admission and reports the same delivery warning.
+Expiry and per-generation limits still apply. A cancelled native read discards late pixels before cache admission.
+
 A non-vision chat model should use `analyze: true`. For non-analyze calls, LC
 returns `description: null` and puts the capability guidance in `warning`.
 
