@@ -41,7 +41,7 @@ image = { version = "0.25.10", default-features = false, features = ["jpeg", "pn
 pdf_oxide = { version = "0.3.77", default-features = false, features = ["rendering"] }
 # pdf_oxide 0.3.78 constructs DocumentIR without the defined_names field
 # added in office_oxide 0.1.12. Keep the compatible version until fixed upstream.
-office_oxide = "=0.1.11"
+office_oxide = "=0.1.12"
 # Require tinyvec 1.13.2 or newer for the `no_std` macro fixes following
 # the 1.13.0 compile failure (Lokathor/tinyvec#225).
 tinyvec = "1.13.2"
