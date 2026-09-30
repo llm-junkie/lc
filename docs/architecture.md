@@ -799,7 +799,7 @@ the latest). The app also imports `katex/dist/katex.min.css` directly from
 **same** katex version. KaTeX 0.18 renamed its internal CSS classes, for example
 `base` → `katex-base`. A 0.16 renderer with 0.18 CSS would render unstyled math.
 
-`package.json` therefore pins both to `^0.18.4` via an npm `overrides` entry for
+`package.json` therefore pins both to `^0.18.9` via an npm `overrides` entry for
 `rehype-katex.katex`. **The override can be dropped** once a `rehype-katex`
 release widens its `katex` range to include `^0.18` or moves `katex` to a
 `peerDependency`. Confirm the change with `npm ls katex`. The override is not
