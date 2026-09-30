@@ -489,6 +489,7 @@ textarea::-webkit-resizer {
 }
 
 .main {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -9016,10 +9017,71 @@ button.model-group-header-no-before {
 
 .ask-user-header {
   min-width: 0;
+  justify-content: space-between;
 }
 
 .ask-user-header h3 {
   margin: 0;
+}
+
+.ask-user-minimize {
+  flex: 0 0 auto;
+}
+
+/* A minimized request keeps waiting without a backdrop or keyboard capture.
+   Center it above the composer, below the Workspace/Parameters overlay. */
+.ask-user-minimized {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 112px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(280px, calc(100% - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-elev-2);
+  color: var(--accent);
+  box-shadow: var(--shadow-md);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ask-user-minimized:hover {
+  background: var(--bg-elev-3);
+  border-color: var(--accent);
+}
+
+.ask-user-minimized:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.ask-user-minimized > svg {
+  flex: 0 0 auto;
+}
+
+.ask-user-minimized-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ask-user-minimized-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ask-user-minimized-context {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .modal-card .ask-user-question {

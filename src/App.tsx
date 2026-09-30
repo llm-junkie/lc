@@ -228,9 +228,9 @@ export default function App({ startup }: AppProps) {
           />
           <main className="main">
             <ChatView />
+            <AskUserModal />
           </main>
           <ToolPermissionModal />
-          <AskUserModal />
           <SettingsPage
             open={settingsOpen}
             onClose={() => {

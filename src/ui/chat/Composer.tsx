@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect, useSyncExternalStore } from 'react';
 import type { ClipboardEvent, DragEvent, KeyboardEvent } from 'react';
 import { fileToAttachment, isAllowedAttachment, hydrateAttachments } from '../../utils/attachments.ts';
 import {
@@ -21,6 +21,10 @@ import { isPdfName, pdfDropNotice, type DroppedPdf } from './pdf-drop-notice.ts'
 import { activePdfDropContext } from './pdf-drop-context.ts';
 import { WhiteboardIcon } from '../tools/WhiteboardIcon.tsx';
 import { WHITEBOARD_UI_TEXT } from '../tools/whiteboard-ui-text.ts';
+import {
+  getInteractionQueueView,
+  subscribeToInteractionQueue,
+} from '../../modules/chat-pipeline/interaction-coordinator.ts';
 
 const basename = (p: string): string => p.split(/[\\/]/).pop() || p;
 
@@ -85,7 +89,7 @@ export function Composer({
   onSend,
   onCancel,
   busy,
-  disabled,
+  disabled: disabledByParent,
   sendDisabled,
   sendDisabledReason,
   placeholder,
@@ -101,6 +105,12 @@ export function Composer({
   onOpenWhiteboard,
   whiteboardOpen,
 }: Props) {
+  const questionsPending = useSyncExternalStore(
+    subscribeToInteractionQueue,
+    () => getInteractionQueueView().visible?.kind === 'ask-user',
+    () => false,
+  );
+  const disabled = disabledByParent || questionsPending;
   const text = useConversationUi(
     (state) => (state.byId[conversationId] ?? EMPTY_CONVERSATION_UI).draftText,
   );
@@ -407,7 +417,7 @@ export function Composer({
 
   return (
     <div
-      className={cn('composer-wrap', dragOver && 'drag-over', sidePanelOpen && 'side-panel-open', pinComposer && 'pinned')}
+      className={cn('composer-wrap', dragOver && 'drag-over', sidePanelOpen && 'side-panel-open', (pinComposer || questionsPending) && 'pinned')}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -466,7 +476,7 @@ export function Composer({
           name="message"
           value={text}
           rows={1}
-          placeholder={placeholder ?? 'Send a message…'}
+          placeholder={questionsPending ? 'Answer the questions to continue…' : (placeholder ?? 'Send a message…')}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
           onPaste={onPaste}
@@ -490,7 +500,7 @@ export function Composer({
             onClick={() => { void submit(); }}
             disabled={disabled || sendDisabled || (text.trim().length === 0 && attachments.length === 0)}
             type="button"
-            title={sendDisabled ? (sendDisabledReason ?? 'Generation capacity is full') : 'Send'}
+            title={questionsPending ? 'Answer the questions to continue' : (sendDisabled ? (sendDisabledReason ?? 'Generation capacity is full') : 'Send')}
             aria-label="Send"
           >
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>

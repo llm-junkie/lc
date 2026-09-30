@@ -206,7 +206,8 @@ test('responsive, focus, hidden-launch, and solid surfaces are explicit', () => 
   assert.match(solidCssSource, /:root\.solid \.whiteboard-confirm/);
   assert.match(askUserSource, /className="modal-backdrop ask-user-backdrop"/);
   assert.match(permissionSource, /className="modal-backdrop tool-permission-backdrop"/);
-  assert.match(askUserSource, /useOrderedOverlayLayer\(Boolean\(request\)\)/);
+  assert.match(askUserSource, /const dialogOpen = Boolean\(request\) && !minimized/);
+  assert.match(askUserSource, /useOrderedOverlayLayer\(dialogOpen\)/);
   assert.match(permissionSource, /useOverlayKeys\(\{ Escape: \(\) => \{\} \}, Boolean\(call\)\)/);
   assert.match(permissionSource, /useOrderedOverlayLayer\(Boolean\(call\)\)/);
   assert.match(

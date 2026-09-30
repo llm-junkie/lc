@@ -332,6 +332,10 @@ stack instead of adding an independent document-level Escape convention.
 The modal contains:
 
 - A `Questions` heading and an `(n/total)` prefix on the current question.
+- A top-right Minimize button that collapses the dialog to a `Questions waiting`
+  button centered horizontally above the composer, showing the owning chat and
+  current question number. Workspace and Parameters remain above that button;
+  opening them does not reposition it.
 - The owning conversation's display title and the exact model ID, with both
   values highlighted using the accent color.
 - The current question.
@@ -353,6 +357,16 @@ Custom never advances automatically.
 ### 7.2 Dismissal and ownership
 
 - The modal has no close icon.
+- Minimize hides the dialog and backdrop while preserving the current question,
+  choices, skips, and custom text. The restore button reopens the same request.
+  The model keeps waiting; minimizing does not submit or skip anything.
+- The minimized request keeps its place in the shared interaction FIFO. Later
+  questions and permission prompts remain queued until it settles. Existing
+  generation cancellation and the absolute attention limit still apply.
+- Composer typing, attachments, and Send are disabled while a question request
+  owns the interaction queue, including while minimized. Existing drafts are
+  preserved and become editable again after it settles. Composer controls stay
+  visible so Workspace and Parameters remain accessible. Stop remains available.
 - Escape is captured and prevented while this modal owns the keyboard.
 - Backdrop clicks do not dismiss or submit it.
 - Skip affects only the current question. It is explicit result data.
@@ -367,7 +381,11 @@ Use semantic dialog markup with `aria-modal`, a labelled heading, an announced
 progress value, accessible choice state, and labelled navigation. Focus moves
 to the first actionable control when the modal opens. Tab from the last control
 wraps to the first, and Shift+Tab from the first wraps to the last. Focus
-returns to the prior focus owner after every settle path. Arrow keys inside the
+returns to the prior focus owner when minimizing and after settling an open
+dialog. Minimizing releases overlay keyboard ownership and focus trapping so
+the rest of the app remains usable. Restoring focuses the current custom input
+or first choice. Cancellation while minimized removes the restore button
+without taking focus from another app control. Arrow keys inside the
 custom text input continue to edit text; question navigation uses the visible
 controls.
 

@@ -28,6 +28,9 @@ export const ASK_USER_UI_TEXT = Object.freeze({
   previous: 'Previous question',
   next: 'Next question',
   done: 'Done',
+  minimize: 'Minimize questions',
+  restore: 'Restore questions',
+  waiting: 'Questions waiting',
 });
 
 export interface AskUserModalRequest {
@@ -182,18 +185,22 @@ function resizeCustomAnswer(element: HTMLTextAreaElement): void {
 
 export function AskUserModal() {
   const [request, setRequest] = useState<AskUserModalRequest | null>(null);
+  const [minimized, setMinimized] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<number, DraftAnswer>>(() => new Map());
   const resolverRef = useRef<Resolver | null>(null);
   const detachAbortRef = useRef<(() => void) | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const minimizedRef = useRef(false);
+  const restoreControlRef = useRef<HTMLButtonElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const initialControlRef = useRef<HTMLButtonElement | null>(null);
   const customAnswerRef = useRef<HTMLTextAreaElement | null>(null);
   const focusCustomAnswerRef = useRef(false);
 
-  useOverlayKeys({ Escape: () => {} }, Boolean(request));
-  const orderedLayerRef = useOrderedOverlayLayer(Boolean(request));
+  const dialogOpen = Boolean(request) && !minimized;
+  useOverlayKeys({ Escape: () => {} }, dialogOpen);
+  const orderedLayerRef = useOrderedOverlayLayer(dialogOpen);
 
   const settle = useCallback((result: AskUserInteractionResult) => {
     const resolve = resolverRef.current;
@@ -201,13 +208,16 @@ export function AskUserModal() {
     detachAbortRef.current?.();
     detachAbortRef.current = null;
     resolverRef.current = null;
+    const restoreFocus = !minimizedRef.current || document.activeElement === restoreControlRef.current;
+    minimizedRef.current = false;
+    setMinimized(false);
     resolve(result);
     setRequest(null);
     setAnswers(new Map());
     setQuestionIndex(0);
     const prior = previousFocusRef.current;
     previousFocusRef.current = null;
-    queueMicrotask(() => prior?.focus());
+    if (restoreFocus) queueMicrotask(() => prior?.focus());
   }, []);
 
   useEffect(() => {
@@ -227,6 +237,8 @@ export function AskUserModal() {
         detachAbortRef.current = () => nextRequest.signal.removeEventListener('abort', onAbort);
         setAnswers(new Map());
         setQuestionIndex(0);
+        minimizedRef.current = false;
+        setMinimized(false);
         setRequest(nextRequest);
       });
     });
@@ -240,8 +252,14 @@ export function AskUserModal() {
 
   useEffect(() => {
     if (!request) return;
-    initialControlRef.current?.focus();
-  }, [questionIndex, request]);
+    if (minimized) {
+      const prior = previousFocusRef.current;
+      if (prior?.isConnected && !prior.matches(':disabled')) prior.focus();
+      else restoreControlRef.current?.focus();
+    } else {
+      (customAnswerRef.current ?? initialControlRef.current)?.focus();
+    }
+  }, [minimized, questionIndex, request]);
 
   const currentQuestion = request?.input.questions[questionIndex];
   const currentAnswer = currentQuestion ? answers.get(currentQuestion.id) : undefined;
@@ -266,7 +284,7 @@ export function AskUserModal() {
       element.focus();
       element.setSelectionRange(element.value.length, element.value.length);
     }
-  }, [currentAnswer]);
+  }, [currentAnswer, dialogOpen]);
 
   const onDialogKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Tab' || !cardRef.current) return;
@@ -287,6 +305,37 @@ export function AskUserModal() {
   }, []);
 
   if (!request || !currentQuestion) return null;
+
+  if (minimized) {
+    return (
+      <button
+        ref={restoreControlRef}
+        type="button"
+        className="ask-user-minimized"
+        aria-label={ASK_USER_UI_TEXT.restore}
+        aria-describedby="ask-user-minimized-context"
+        aria-haspopup="dialog"
+        title={`${ASK_USER_UI_TEXT.restore}: ${request.conversationTitle || 'Untitled conversation'} (${request.modelId})`}
+        onClick={() => {
+          minimizedRef.current = false;
+          setMinimized(false);
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" />
+        </svg>
+        <span className="ask-user-minimized-text">
+          <span className="ask-user-minimized-title">{ASK_USER_UI_TEXT.waiting}</span>
+          <span id="ask-user-minimized-context" className="ask-user-minimized-context">
+            {request.conversationTitle || 'Untitled conversation'} · {questionIndex + 1}/{request.input.questions.length}
+          </span>
+        </span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <polyline points="6 14 12 8 18 14" />
+        </svg>
+      </button>
+    );
+  }
 
   const submit = () => settle({ decision: 'submitted', data: buildOutput(request.input, answers) });
   const advanceToNextQuestion = () => {
@@ -309,6 +358,20 @@ export function AskUserModal() {
       <div className="modal-card ask-user-modal" ref={cardRef}>
         <header className="ask-user-header">
           <h3 id="ask-user-modal-title">{ASK_USER_UI_TEXT.title}</h3>
+          <button
+            type="button"
+            className="icon-btn ask-user-minimize"
+            aria-label={ASK_USER_UI_TEXT.minimize}
+            title={ASK_USER_UI_TEXT.minimize}
+            onClick={() => {
+              minimizedRef.current = true;
+              setMinimized(true);
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <path d="M5 12h14" />
+            </svg>
+          </button>
         </header>
 
         <div className="permission-modal-context ask-user-context" aria-label="Request context">
