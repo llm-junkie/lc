@@ -1,22 +1,12 @@
 name: Desktop release
 
-# Manual only, and deliberately light: build the installers and publish the
-# draft, nothing else. Preflight keeps only the two gates that are specific to
-# releasing — the tag/manifest version match and the dependency licence policy.
-#
-# THIS WORKFLOW RUNS NO TESTS. Validation lives in pre-release.yml ("Build
-# artifacts"), which runs the source checks and the full suite on all three
-# platforms before it produces binaries. Run that first and check the result;
-# tagging does not verify anything on your behalf.
-#
-# To cut a release, push the tag first, then start this workflow from the
-# Actions tab and select that tag under "Use workflow from" — the job reads
-# the version from github.ref_name, so it MUST run on the tag ref, not a
-# branch. The tag also needs this workflow file with workflow_dispatch on it.
+# A version tag starts validation of that exact commit, then packages the
+# unsigned applications and uploads them to a draft release. Publication is
+# manual. workflow_dispatch supports retrying an existing tag.
 on:
-  # push:
-  #   tags:
-  #     - 'v*'
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions: {}
@@ -32,7 +22,7 @@ jobs:
   preflight:
     name: Release preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -46,33 +36,19 @@ jobs:
           node-version-file: .node-version
           cache: npm
 
-      # licenses:check shells out to `cargo metadata --locked`.
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@1.98.1
-
-      # Nothing in this job compiles Rust today, so these packages are strictly
-      # unused here. They stay anyway: the step costs ~40s once per release,
-      # and dropping it would make any future cargo step in this job fail at a
-      # pkg-config error instead of just working.
-      - name: Install Linux system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
       - name: Verify tag and manifest versions
         run: node scripts/check-release-version.mjs "${GITHUB_REF_NAME}"
 
-      - name: Install dependencies
-        run: npm ci
-
-      # The legal gate stays: a release that ships the wrong notices is a
-      # problem no later step catches, and this costs ~3 minutes.
-      - name: Verify releasable dependency licenses
-        run: npm run licenses:check
+  validation:
+    name: Validate release commit
+    needs: preflight
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
 
   build:
     name: ${{ matrix.name }}
-    needs: preflight
+    needs: validation
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 90
     permissions:
@@ -159,7 +135,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: LC ${{ github.ref_name }}
-          releaseBody: Automated draft. Validate every installer and configure platform signing before publication.
+          releaseBody: Automated draft. Validate every installer and portable archive before publication. Binaries are unsigned and un-notarized; first-launch security warnings are expected.
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           generateReleaseNotes: true
@@ -167,7 +143,7 @@ jobs:
           uploadUpdaterSignatures: false
           retryAttempts: 2
           releaseAssetNamePattern: lc_[version]_[platform]_[arch][setup][ext]
-          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }} -- --locked
       - name: Resolve app version
         id: version
         shell: bash
@@ -184,16 +160,14 @@ jobs:
         run: |
           gh release delete-asset "${{ github.ref_name }}" "lc_${{ steps.version.outputs.version }}_darwin_${{ matrix.portable-arch }}.app.tar.gz" --yes || true
 
-      # Portable single-file archives attached to the same draft release:
-      #   Windows -> zip of the raw binary
+      # Portable archives attached to the same draft release:
+      #   Windows -> zip of the binary and its resources/notices
       #   macOS   -> zip of the .app bundle (the portable unit on macOS)
       #   Linux   -> no zip; the AppImage is the portable format
       - name: Create portable archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path portable | Out-Null
-          Compress-Archive -Path src-tauri/target/release/llm-client.exe -DestinationPath "portable/lc_${{ steps.version.outputs.version }}_${{ matrix.portable-platform }}_${{ matrix.portable-arch }}-portable.zip"
+        run: ./scripts/package-windows-portable.ps1 -Version '${{ steps.version.outputs.version }}'
 
       - name: Create portable archive (macOS)
         if: runner.os == 'macOS'

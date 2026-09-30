@@ -1181,16 +1181,16 @@ mod tests {
 
     #[test]
     fn cwd_whitespace_only_falls_back_to_root_or_temp() {
-        let root = std::env::temp_dir().join(format!(
-            "lc-shell-cwd-ws-{:016x}",
-            rand::random::<u64>()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("lc-shell-cwd-ws-{:016x}", rand::random::<u64>()));
         std::fs::create_dir_all(&root).unwrap();
         let roots = vec![root.clone()];
-        let resolved = resolve_shell_cwd(Some("   "), &roots).expect("whitespace cwd must fall back to first root");
+        let resolved = resolve_shell_cwd(Some("   "), &roots)
+            .expect("whitespace cwd must fall back to first root");
         assert_eq!(resolved, root);
 
-        let temp_fallback = resolve_shell_cwd(Some("   "), &[]).expect("whitespace cwd with no roots must fall back to temp");
+        let temp_fallback = resolve_shell_cwd(Some("   "), &[])
+            .expect("whitespace cwd with no roots must fall back to temp");
         assert_eq!(temp_fallback, std::env::temp_dir());
         std::fs::remove_dir_all(root).unwrap();
     }

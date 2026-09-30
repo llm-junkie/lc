@@ -92,7 +92,7 @@ fn windows_build_number() -> Option<u32> {
     info.dwOSVersionInfoSize = std::mem::size_of::<OSVERSIONINFOW>() as u32;
     // SAFETY: correct struct type and size set above.
     let ok = unsafe { RtlGetVersion(&mut info) } == 0;
-    ok.then(|| info.dwBuildNumber)
+    ok.then_some(info.dwBuildNumber)
 }
 
 /// Apply the platform's native material to the main window.
@@ -130,7 +130,11 @@ pub fn activate_material<R: Runtime>(
             window_vibrancy::apply_acrylic(&window, None)
         };
         match result {
-            Ok(()) => MaterialActivation { backend, active: true, reason: None },
+            Ok(()) => MaterialActivation {
+                backend,
+                active: true,
+                reason: None,
+            },
             Err(error) => matte(&format!("{backend} activation failed: {error}")),
         }
     }
@@ -144,7 +148,11 @@ pub fn activate_material<R: Runtime>(
             None,
             None,
         ) {
-            Ok(()) => MaterialActivation { backend, active: true, reason: None },
+            Ok(()) => MaterialActivation {
+                backend,
+                active: true,
+                reason: None,
+            },
             Err(error) => matte(&format!("{backend} activation failed: {error}")),
         }
     }
@@ -200,6 +208,9 @@ mod tests {
 
     #[test]
     fn short_reasons_pass_through_untouched() {
-        assert_eq!(bound_reason("mica activation failed"), "mica activation failed");
+        assert_eq!(
+            bound_reason("mica activation failed"),
+            "mica activation failed"
+        );
     }
 }

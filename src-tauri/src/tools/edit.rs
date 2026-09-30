@@ -650,7 +650,10 @@ mod tests {
         // Model guessed 2-space indent; the file uses 4.
         let content = "fn main() {\n    let x = 1;\n}\n";
         let (hint, lines) = diagnose_miss(content, "  let x = 1;");
-        assert!(hint.contains("leading and trailing whitespace"), "got: {hint}");
+        assert!(
+            hint.contains("leading and trailing whitespace"),
+            "got: {hint}"
+        );
         assert_eq!(lines, vec![2]);
     }
 
@@ -667,7 +670,10 @@ mod tests {
     fn diagnose_reports_absent_text() {
         let content = "fn main() {\n    let x = 1;\n}\n";
         let (hint, lines) = diagnose_miss(content, "totally absent line");
-        assert!(hint.contains("first line of old_string was not found"), "got: {hint}");
+        assert!(
+            hint.contains("first line of old_string was not found"),
+            "got: {hint}"
+        );
         assert!(lines.is_empty());
     }
 
@@ -820,7 +826,6 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
-
     #[tokio::test]
     async fn edit_miss_remedies_replay_through_the_handler() {
         let root = std::env::temp_dir().join(format!("lc-edit-remedy-{}", std::process::id()));
@@ -873,7 +878,9 @@ mod tests {
             }],
             create_if_missing: None,
             allowed_roots: Some(vec![root.to_string_lossy().to_string()]),
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         assert_eq!(result["results"][0]["replaced"], false);
         assert_eq!(result["results"][0]["hint"],
             "No exact match. The first line of old_string was not found. Reread the file and verify the path before you retry.");
@@ -897,9 +904,17 @@ mod tests {
                 }],
                 create_if_missing: None,
                 allowed_roots: Some(vec![root.to_string_lossy().to_string()]),
-            }).await.unwrap();
+            })
+            .await
+            .unwrap();
             assert_eq!(result["results"][0]["occurrences"], count);
-            assert_eq!(result["results"][0]["match_lines"].as_array().unwrap().len(), count.min(20));
+            assert_eq!(
+                result["results"][0]["match_lines"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                count.min(20)
+            );
             assert_eq!(result["results"][0]["replaced"], false);
             assert_eq!(std::fs::read_to_string(&path).unwrap(), content);
         }

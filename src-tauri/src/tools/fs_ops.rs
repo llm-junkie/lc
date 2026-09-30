@@ -754,8 +754,7 @@ fn read_ranged_file(
             path,
             size_bytes,
             cap,
-            start,
-            end_opt,
+            (start, end_opt),
             kind,
             cancel_token,
         );
@@ -896,11 +895,11 @@ fn read_ranged_utf16(
     path: &str,
     size_bytes: u64,
     cap: u64,
-    start: usize,
-    end_opt: Option<usize>,
+    line_range: (usize, Option<usize>),
     kind: Utf16Kind,
     cancel_token: Option<&CancellationToken>,
 ) -> serde_json::Value {
+    let (start, end_opt) = line_range;
     if size_bytes > UTF16_RANGED_BUFFER_LIMIT {
         return err_entry_with_code(
             path,
@@ -2128,7 +2127,11 @@ async fn send_vision_request(
         request_headers: req.request_headers.clone(),
     };
     let (chat_url, body) = super::model_request::request_body(
-        &config, &req.system_prompt, user_content, req.max_tokens, None,
+        &config,
+        &req.system_prompt,
+        user_content,
+        req.max_tokens,
+        None,
     );
 
     // Send the request.
@@ -3738,8 +3741,14 @@ mod tests {
     /// length check separates them, and they must stay binary.
     #[test]
     fn utf16_bom_detection_distinguishes_utf32() {
-        assert_eq!(utf16_bom(&utf16_bytes("x", Utf16Kind::Le)), Some(Utf16Kind::Le));
-        assert_eq!(utf16_bom(&utf16_bytes("x", Utf16Kind::Be)), Some(Utf16Kind::Be));
+        assert_eq!(
+            utf16_bom(&utf16_bytes("x", Utf16Kind::Le)),
+            Some(Utf16Kind::Le)
+        );
+        assert_eq!(
+            utf16_bom(&utf16_bytes("x", Utf16Kind::Be)),
+            Some(Utf16Kind::Be)
+        );
         assert_eq!(utf16_bom(&[0xFF, 0xFE, 0x00, 0x00, 0x31]), None);
         assert_eq!(utf16_bom(&[0x00, 0x00, 0xFE, 0xFF, 0x00]), None);
         assert_eq!(utf16_bom(b"plain utf-8"), None);
@@ -3750,8 +3759,7 @@ mod tests {
         let text = "needle caf\u{e9} \u{10437} end";
         for kind in [Utf16Kind::Le, Utf16Kind::Be] {
             let bytes = utf16_bytes(text, kind);
-            let decoded =
-                decode_utf16(&bytes[2..], kind).expect("valid stream must decode");
+            let decoded = decode_utf16(&bytes[2..], kind).expect("valid stream must decode");
             assert_eq!(decoded, text, "{kind:?}");
         }
     }
@@ -3780,7 +3788,10 @@ mod tests {
 
         assert_eq!(read_text(b"caf\xe9"), Err(NotText::NotUtf8));
         // BOM-less UTF-16: NULs in the window, no mark to transcode.
-        assert_eq!(read_text(&utf16_bytes("x", Utf16Kind::Le)[2..]), Err(NotText::Binary));
+        assert_eq!(
+            read_text(&utf16_bytes("x", Utf16Kind::Le)[2..]),
+            Err(NotText::Binary)
+        );
     }
 
     #[test]
@@ -3806,7 +3817,11 @@ mod tests {
         let expected = {
             let mut hasher = Sha256::new();
             hasher.update(&raw);
-            hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+            hasher
+                .finalize()
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>()
         };
         assert_eq!(entry["sha256"].as_str().unwrap(), expected);
         std::fs::remove_dir_all(root).unwrap();
@@ -3820,7 +3835,10 @@ mod tests {
         let file = root.join("big.log");
         let body: String = (0..60_000).map(|i| format!("line {i:05}\n")).collect();
         let raw = utf16_bytes(&body, Utf16Kind::Be);
-        assert!(raw.len() as u64 > DEFAULT_READ_BYTES, "source must exceed the cap");
+        assert!(
+            raw.len() as u64 > DEFAULT_READ_BYTES,
+            "source must exceed the cap"
+        );
         std::fs::write(&file, &raw).unwrap();
 
         let entry = read_single_file(
@@ -5072,9 +5090,7 @@ mod tests {
         // The diagnostic names the code too. Read-file callers select
         // recovery from the separate error_code field.
         assert!(NotText::Binary.remedy().starts_with("binary_detected:"));
-        assert!(NotText::NotUtf8
-            .remedy()
-            .starts_with("encoding_not_utf8:"));
+        assert!(NotText::NotUtf8.remedy().starts_with("encoding_not_utf8:"));
     }
 
     /// A lossy decode used to return text whose bytes no longer matched
@@ -5127,7 +5143,6 @@ mod tests {
         );
         std::fs::remove_dir_all(root).unwrap();
     }
-
 
     /// `lc_read_file` transcodes BOM-marked UTF-16 for reading. Writing
     /// that text back stored UTF-8 and changed the file's encoding, and
@@ -5222,7 +5237,6 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
-
     /// The decoder sniffs magic bytes, so the reported mime must come
     /// from the bytes too. Reporting the extension announced a PNG
     /// named `.jpg` as JPEG, and a valid PNG with no extension as
@@ -5311,5 +5325,4 @@ mod tests {
         );
         std::fs::remove_dir_all(root).unwrap();
     }
-
 }

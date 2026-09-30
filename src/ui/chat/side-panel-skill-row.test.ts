@@ -271,7 +271,7 @@ test('Workspace capability sections use the requested visual order', () => {
   for (const [className, order] of expected) {
     assert.match(
       ordering,
-      new RegExp(`\\.side-body > \\.${className}\\s*\\{\\s*order:\\s*${order};`),
+      new RegExp(`\\.side-body\\s*>\\s*\\.${className}\\s*\\{\\s*order:\\s*${order};`),
     );
     assert.match(sidePanelSource, new RegExp(`side-section ${className}`));
   }
@@ -325,7 +325,7 @@ test('Whiteboard stays visually active while generation config siblings remain m
   assert.match(indexCss, /\.side-body\.generation-config-locked\s*\{\s*opacity:\s*1/);
   assert.match(
     indexCss,
-    /> :not\(\.side-generation-lock-exempt\):not\(\.side-lock-zone\),\s*\.side-body\.generation-config-locked > \.side-lock-zone > \*\s*\{\s*opacity:\s*0\.55/,
+    />\s*:not\(\.side-generation-lock-exempt\):not\(\.side-lock-zone\),\s*\.side-body\.generation-config-locked\s*>\s*\.side-lock-zone\s*>\s*\*\s*\{\s*opacity:\s*0\.55/,
   );
   assert.match(
     indexCss,

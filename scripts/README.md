@@ -67,6 +67,7 @@ native Cargo output. You do not need to run it before an incremental build.
 | [`build-skills-content.mjs`](./build-skills-content.mjs) | — | Embeds `skills/*.md` into `src/modules/builtin-skill-content.ts`. Re-run whenever a skill file changes. |
 | [`copy-excalidraw-assets.mjs`](./copy-excalidraw-assets.mjs) | — | Copies Excalidraw fonts out of `node_modules` into `public/` so nothing loads from a CDN. The production frontend build generates their `LICENSES.md` beside them. |
 | [`copy-tauri-resources.mjs`](./copy-tauri-resources.mjs) | — | Stages `spine-builder.html`, `models-cache.json`, `LICENSE`, and `NOTICE` into `src-tauri/resources/`. Tauri validates that common list in **both** build and dev. `npm run tauri:build` separately generates the production-only dependency inventory and selects `tauri.release.conf.json`. The development form takes the spine builder from `theme/` instead of `dist/`. |
+| [`package-windows-portable.ps1`](./package-windows-portable.ps1) | — | Packages the Windows executable with every release resource and license notice. Both GitHub packaging workflows invoke it after production preparation and the native build. It verifies the ZIP paths and each file's contents before reporting success. |
 
 ## Gates
 

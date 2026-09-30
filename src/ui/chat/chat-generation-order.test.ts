@@ -569,7 +569,7 @@ test('shared Markdown styles align task lists and separate footnotes', () => {
   );
   assert.match(
     styles,
-    /\.md \.task-list-item > input\[type='checkbox'\]\s*{[^}]*margin:\s*0 0\.45em 0\.25em -1\.4em;[^}]*vertical-align:\s*middle;/,
+    /\.md \.task-list-item\s*>\s*input\[type='checkbox'\]\s*{[^}]*margin:\s*0 0\.45em 0\.25em -1\.4em;[^}]*vertical-align:\s*middle;/,
   );
   assert.match(
     styles,

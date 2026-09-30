@@ -405,7 +405,6 @@ impl GrepBudget {
         }
         None
     }
-
 }
 
 /// Per-search diagnostic counters.
@@ -687,9 +686,7 @@ fn read_candidates(
             }
             continue;
         }
-        if more_candidates
-            && opts.mode == OutputMode::Content
-            && budget.remaining_match_bytes == 0
+        if more_candidates && opts.mode == OutputMode::Content && budget.remaining_match_bytes == 0
         {
             if sampled_more {
                 return SearchOutcome::truncated(TruncationReason::PerFileMatches);
@@ -811,10 +808,7 @@ fn grep_decode(content_bytes: &[u8]) -> Option<(String, &'static str)> {
     if is_binary(content_bytes) {
         return None;
     }
-    Some((
-        String::from_utf8_lossy(content_bytes).into_owned(),
-        "utf-8",
-    ))
+    Some((String::from_utf8_lossy(content_bytes).into_owned(), "utf-8"))
 }
 
 /// Binary sniff.  Two checks over the raw bytes, never over a decoded
@@ -1749,10 +1743,14 @@ mod tests {
     fn spent_result_budget_reports_not_determined_without_a_proof_scan() {
         let root = test_root("results-lean");
         std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("a_hit.txt"), "needle
+        std::fs::write(
+            root.join("a_hit.txt"),
+            "needle
 needle
 needle
-").unwrap();
+",
+        )
+        .unwrap();
         // Files the old proof scan would have opened looking for proof.
         for index in 0..200 {
             std::fs::write(root.join(format!("z{index:04}.txt")), "x".repeat(500)).unwrap();
@@ -2113,7 +2111,11 @@ needle
             &SearchOptions::default(),
         );
 
-        assert_eq!(outcome, SearchOutcome::complete(), "a dead path is not a stop condition");
+        assert_eq!(
+            outcome,
+            SearchOutcome::complete(),
+            "a dead path is not a stop condition"
+        );
         assert_eq!(counters.skipped_unreadable, 1);
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -2198,7 +2200,10 @@ needle
         let result = run_with(&root, "needle", &mut budget(), &opts);
 
         let matches = result["matches"].as_array().unwrap();
-        assert!(matches[0].get("before").is_none(), "no lines exist before line 1");
+        assert!(
+            matches[0].get("before").is_none(),
+            "no lines exist before line 1"
+        );
         let after = matches[0]["after"].as_array().unwrap();
         assert_eq!(after.len(), 1);
         std::fs::remove_dir_all(root).unwrap();
@@ -2228,7 +2233,9 @@ needle
             .map(|f| f.as_str().unwrap())
             .collect();
         assert_eq!(files.len(), 2, "got {files:?}");
-        assert!(files.iter().all(|f| f.ends_with("a.txt") || f.ends_with("b.txt")));
+        assert!(files
+            .iter()
+            .all(|f| f.ends_with("a.txt") || f.ends_with("b.txt")));
 
         // One file per result-budget unit: a budget of 1 stops truncated.
         let mut b = GrepBudget {
@@ -2481,7 +2488,6 @@ needle
         std::fs::remove_dir_all(root).unwrap();
     }
 
-
     /// `lc_read_file` announces the encoding it returned. Grep
     /// transcoded the same bytes and reported nothing, so a match could
     /// come out of a UTF-16 file with no sign of it anywhere.
@@ -2504,7 +2510,10 @@ needle
         assert_eq!(transcoded.len(), 1, "only the UTF-16 match is marked");
         assert_eq!(transcoded[0]["encoding"], "utf-16le");
         assert!(
-            transcoded[0]["file"].as_str().unwrap().ends_with("utf16.txt"),
+            transcoded[0]["file"]
+                .as_str()
+                .unwrap()
+                .ends_with("utf16.txt"),
             "the mark must be on the transcoded file's match"
         );
         std::fs::remove_dir_all(root).unwrap();
@@ -2523,5 +2532,4 @@ needle
         assert!(result["matches"][0].get("encoding").is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
-
 }

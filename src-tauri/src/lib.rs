@@ -1043,7 +1043,6 @@ mod commands {
             assert_eq!(result.unwrap_err(), BOUNDED_FILE_TOO_LARGE);
         }
 
-
         #[test]
         fn dropped_file_reader_rejects_oversized_files_before_allocation() {
             let path = temporary_file_path("oversized-drop");

@@ -5,8 +5,8 @@ name: Build artifacts
 # them as downloadable workflow artifacts. Unlike release.yml this NEVER
 # creates or publishes a GitHub Release.
 #
-# This is the gate to run before you tag. release.yml is deliberately light and
-# runs no tests, so whatever passes here is what a release rests on.
+# Use this workflow to inspect packages before tagging. release.yml also runs
+# the reusable CI workflow on its own tagged commit before packaging.
 #
 # The build matrix waits on both check jobs. If you want binaries out of a tree
 # with a known-failing test, drop `needs:` on the build job for that run rather
@@ -133,9 +133,7 @@ jobs:
             # (the raw binary needs system WebKitGTK and isn't self-contained).
           - name: windows-x64
             platform: windows-latest
-            # No `portable` bundle target in @tauri-apps/cli 2.11.4 — the
-            # runnable raw exe (target/release/llm-client.exe) is packaged into
-            # a portable zip by the archive steps below.
+            # Package the executable with its resources and license notices.
             args: --bundles nsis,msi
             rust-targets: ''
             portable-platform: windows
@@ -205,17 +203,15 @@ jobs:
         shell: bash
         run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
 
-      # Portable single-file archives (no release involvement):
-      #   Windows -> zip of the raw binary
+      # Portable archives (no release involvement):
+      #   Windows -> zip of the binary and its resources/notices
       #   macOS   -> zip of the .app bundle (a bare macho binary is NOT
       #              runnable; the .app bundle is the portable unit there)
       #   Linux   -> no zip; the AppImage is the portable format
       - name: Create portable archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path portable | Out-Null
-          Compress-Archive -Path src-tauri/target/release/llm-client.exe -DestinationPath "portable/lc_${{ steps.version.outputs.version }}_${{ matrix.portable-platform }}_${{ matrix.portable-arch }}-portable.zip"
+        run: ./scripts/package-windows-portable.ps1 -Version '${{ steps.version.outputs.version }}'
 
       - name: Create portable archive (macOS)
         if: runner.os == 'macOS'

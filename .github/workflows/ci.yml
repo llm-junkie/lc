@@ -1,13 +1,14 @@
 name: CI
 
-# Manual only. The automatic triggers below stay commented out on purpose —
-# run this workflow from the Actions tab.
+# Direct runs are manual. Desktop release calls this workflow for its tag.
+# Ordinary branch push and pull-request triggers remain disabled.
 on:
   # push:
   #   branches: [main]
   # pull_request:
   #   branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

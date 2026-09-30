@@ -21,6 +21,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use std::time::Duration;
+#[cfg(not(debug_assertions))]
+use tauri::Manager;
 
 // ---- Compact on-disk format ----
 
@@ -290,13 +292,16 @@ fn load_preferred_compact(downloaded: &Path, bundled: &Path) -> Result<ProviderC
     load_compact(bundled)
 }
 
-fn ensure_loaded(app_data: &Path) -> Result<(), String> {
+fn ensure_loaded<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    app_data: &Path,
+) -> Result<(), String> {
     if CACHE.read().unwrap().is_some() {
         return Ok(());
     }
 
     let cache_file = app_data.join("models-cache.json");
-    let bundled = bundled_path();
+    let bundled = bundled_path(app)?;
     let cache = load_preferred_compact(&cache_file, &bundled)?;
     *CACHE.write().unwrap() = Some(cache);
     Ok(())
@@ -308,21 +313,22 @@ fn app_data_dir() -> PathBuf {
         .join("lc")
 }
 
-fn bundled_path() -> PathBuf {
+fn bundled_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     #[cfg(not(debug_assertions))]
     {
-        std::env::current_exe()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("resources")
-            .join("models-cache.json")
+        app.path()
+            .resolve(
+                "resources/models-cache.json",
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|error| format!("resolve bundled models cache: {error}"))
     }
     #[cfg(debug_assertions)]
     {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let _ = app;
+        Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("resources")
-            .join("models-cache.json")
+            .join("models-cache.json"))
     }
 }
 
@@ -467,12 +473,13 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
 /// Matches the base URL against provider `api` fields to find the right
 /// provider, then looks up each model ID.
 #[tauri::command]
-pub async fn lookup_models_dev(
+pub async fn lookup_models_dev<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     base_url: String,
     ids: Vec<String>,
 ) -> Result<Vec<Option<ModelMeta>>, String> {
     let app_data = app_data_dir();
-    ensure_loaded(&app_data)?;
+    ensure_loaded(&app, &app_data)?;
     let cache = CACHE.read().unwrap();
     let state = cache.as_ref().unwrap();
     let providers = find_providers(state, &base_url);
@@ -657,7 +664,11 @@ mod tests {
         let compact = full_to_compact(&full);
         assert_eq!(compact.len(), 1, "non-http provider must be dropped");
         let p = &compact["openai"];
-        assert_eq!(p.m.len(), 1, "a model with no usable fields must be dropped");
+        assert_eq!(
+            p.m.len(),
+            1,
+            "a model with no usable fields must be dropped"
+        );
         let m = &p.m["gpt-5"];
         assert_eq!(m.c, Some(400000));
         assert_eq!(m.n.as_deref(), Some("GPT-5"));

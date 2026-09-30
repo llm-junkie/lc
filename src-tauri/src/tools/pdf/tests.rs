@@ -580,10 +580,7 @@ async fn over_four_paths_processes_exactly_the_first_four_with_a_warning() {
         })
         .expect("the 4-path cap warning must be present");
     assert!(
-        cap_warning
-            .as_str()
-            .unwrap()
-            .contains("LC received 5 PDFs"),
+        cap_warning.as_str().unwrap().contains("LC received 5 PDFs"),
         "warning must state the requested count: {cap_warning}"
     );
 }
