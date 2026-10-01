@@ -14,8 +14,7 @@
         "decorations": true,
         "transparent": true,
         "dragDropEnabled": true,
-        "visible": false,
-        "macOSPrivateApi": true
+        "visible": false
       }
     ]
   }

@@ -484,13 +484,17 @@ can apply:
 - Window transparency itself is platform-configured: the base
   `src-tauri/tauri.conf.json` window stays opaque (the Linux invariant);
   `tauri.windows.conf.json` and `tauri.macos.conf.json` replace the window
-  array with transparent definitions (macOS adds `macOSPrivateApi`, which
-  also rules out Mac App Store distribution).
+  array with transparent definitions. The shared `app.macOSPrivateApi`
+  setting and matching `macos-private-api` Cargo feature allow macOS
+  transparency, including direct Rust builds. The setting applies only
+  on macOS and rules out Mac App Store distribution.
 
 Two build guards mechanize the invariants: `scripts/check-material-css.mjs`
 fails any CSS that makes `html`/`body`/`#root`/`.app` transparent outside a
 native gate, and `scripts/check-tauri-configs.mjs` fails when a shared window
-field drifts between the three window definitions or the base loses opacity.
+field drifts between the three window definitions, a window key is absent
+from the installed Tauri schema, the base loses opacity, or the app-level
+macOS private API setting is disabled.
 The persisted preference migrated from `solidTheme` to `materialMode`
 (store schema v2; see `docs/data-model.md`), and the runtime resolution is
 echoed into support reports (see `docs/support-report.md`).

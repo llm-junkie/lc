@@ -10,9 +10,12 @@
  *
  * This script fails the build when any SHARED field (the fields below)
  * differs across the window definitions in the base and platform
- * configs. Platform-specific fields (`transparent`,
- * `macOSPrivateApi`, `windowEffects`, ...) are intentionally exempt:
+ * configs. Platform-specific window fields (`transparent`,
+ * `windowEffects`, ...) are intentionally exempt:
  * they are the reason the platform files exist.
+ * Window keys must also exist in the installed Tauri CLI schema.
+ * The app-level macOS private API setting lives in the shared config
+ * to match the Cargo feature for direct Rust builds on every platform.
  *
  * Usage: node scripts/check-tauri-configs.mjs
  */
@@ -20,9 +23,13 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const tauriDir = join(root, 'src-tauri');
+const require = createRequire(import.meta.url);
+const schema = JSON.parse(readFileSync(require.resolve('@tauri-apps/cli/config.schema.json'), 'utf8'));
+const windowFields = new Set(Object.keys(schema.definitions.WindowConfig.properties));
 
 /** Window fields that must be identical in every window definition.
  *  Anything not listed here is allowed to be platform-specific —
@@ -56,7 +63,12 @@ function readWindowDefinition(name) {
       `${name}: expected exactly one window in app.windows (platform files replace the base array)`,
     );
   }
-  return { name, window: windows[0] };
+  for (const field of Object.keys(windows[0])) {
+    if (!windowFields.has(field)) {
+      throw new Error(`${name}: unknown app.windows field "${field}" in the installed Tauri schema`);
+    }
+  }
+  return { name, config, window: windows[0] };
 }
 
 const definitions = CONFIGS.map(readWindowDefinition);
@@ -91,9 +103,10 @@ for (const { name, window } of definitions.slice(1)) {
     console.error(`${name}: platform window must set "transparent": true for native material`);
   }
 }
-if (definitions[2].window.macOSPrivateApi !== true) {
+if (base.config.app.macOSPrivateApi !== true
+    || definitions.some(({ config }) => config.app.macOSPrivateApi === false)) {
   failures++;
-  console.error(`tauri.macos.conf.json: vibrancy requires "macOSPrivateApi": true`);
+  console.error(`tauri.conf.json: vibrancy requires app.macOSPrivateApi: true without a platform override disabling it`);
 }
 
 if (failures > 0) {

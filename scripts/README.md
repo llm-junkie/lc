@@ -78,6 +78,7 @@ generates the distributable dependency inventory.
 
 | Script | Handle | What it enforces |
 |---|---|---|
+| [`check-tauri-configs.mjs`](./check-tauri-configs.mjs) | `npm run check:tauri-configs` | Keeps shared window fields synchronized, rejects window keys absent from the installed Tauri schema, preserves the opaque Linux and transparent Windows/macOS policies, and requires the shared app-level macOS private API setting. Runs during every frontend build, including Linux CI. |
 | [`check-katex-font-assets.mjs`](./check-katex-font-assets.mjs) | `npm run check:katex-fonts` | Verifies that the production CSS references packaged WOFF2 files for all four KaTeX delimiter fonts. This keeps small fonts out of CSP-blocked `data:` URLs. Run it after `vite build`; the ordinary build does this automatically. |
 | [`check-solid-css.mjs`](./check-solid-css.mjs) | `npm run check:solid-css` | Confirms that `src/themes/solid.css` covers every glass surface in `src/index.css`. The type system and test suite cannot detect this relationship. Read the header for the scope of the four checks. |
 | [`check-release-licenses.mjs`](./check-release-licenses.mjs) | via `npm run licenses:check` | Checks source licence metadata and the split Tauri configuration. `--frontend-artifacts` checks ordinary build outputs. `--artifacts` also requires the production-only dependency inventory. The script runs in CI and `release.yml`. |
