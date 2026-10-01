@@ -11,7 +11,7 @@ const schema = z.object({
     'paths accepts at most 100 entries. Split the stat request into batches of 100 or fewer paths.',
   ).describe(
     'Absolute paths to inspect. A call accepts at most 100 paths.'),
-});
+}).strict();
 
 type Input = z.infer<typeof schema>;
 

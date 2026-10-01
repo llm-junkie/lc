@@ -907,7 +907,8 @@ and stable error codes from prose rewriting.
 ## 17. Architecture decisions
 
 - The system exposes one dedicated `lc_tool_help` tool.
-- Operational schemas stay strict.
+- Operational schemas stay strict. Runtime validation rejects undeclared fields
+  in each closed input object, as its published JSON Schema requires.
 - `tool` is required and `query` is optional.
 - Queries use bounded search text instead of an exact topic enum.
 - A query searches only one resolved tool.

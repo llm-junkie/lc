@@ -93,7 +93,7 @@ const schema = z.object({
   /** Custom instruction for the sub-agent when analyze is true.
    *  E.g. "Focus on the error messages and stack traces." */
   instruction: z.string().optional(),
-});
+}).strict();
 
 export type ReadImageInput = z.infer<typeof schema>;
 

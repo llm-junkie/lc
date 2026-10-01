@@ -218,7 +218,7 @@ const schema = z.object({
   freshness: freshnessSchema,
   /** Request up to 5 additional alternative excerpts per search result. */
   extra_snippets: z.boolean().optional(),
-});
+}).strict();
 
 export type WebResearchInput = z.infer<typeof schema>;
 

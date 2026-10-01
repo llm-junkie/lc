@@ -55,7 +55,7 @@ const schema = z.object({
     524288,
     'max_result_bytes must be at most 524288. Use 524288 or a smaller byte limit.',
   ).default(65536).optional(),
-});
+}).strict();
 
 export type ToolHistoryInput = z.infer<typeof schema>;
 

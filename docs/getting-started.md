@@ -378,6 +378,14 @@ SSRF design, see [security.md](./security.md).
 | Marginalia returns `429` | The shared `public` key allows ~3 queries/minute. Request your own free key. |
 | A recency filter seems ignored | Marginalia has no recency filter. SearXNG supports the `pd`/`pw`/`pm`/`py` presets but not a custom date range, and applies them only to engines that support it. Anything dropped is listed in `ignored_params`. |
 
+## Third-party libraries and licenses
+
+Open **Settings → About → Third-party licenses**, beside **GitHub contributors**,
+to read the dependency inventory, license texts, font notices, and adapted-source
+attributions inside LC. Packaged desktop releases include this document and it
+can be read offline. Development builds show it when the release inventory has
+already been generated; otherwise the view explains that it is unavailable.
+
 ## Creating a support report
 
 For a problem that is not resolved by the checks above, open

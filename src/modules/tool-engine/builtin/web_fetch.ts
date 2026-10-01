@@ -13,6 +13,7 @@ import { remainingMs } from '../runner.ts';
 
 export const WEB_FETCH_HARD_CAP_BYTES = 32 * 1024 * 1024;
 export const WEB_FETCH_HARD_CAP_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 10_000;
 
 const schema = z.object({
   url: z.string().url(),
@@ -30,7 +31,7 @@ const schema = z.object({
    *  (use for content-heavy pages with no inline JS data). "raw"
    *  returns the body exactly as received. */
   strip_mode: z.enum(['clean', 'minimal', 'raw']).optional(),
-});
+}).strict();
 
 export type WebFetchInput = z.infer<typeof schema>;
 
@@ -92,7 +93,7 @@ export const webFetch: ToolHandler<WebFetchInput, WebFetchOutput> = {
         group_id: groupId,
         // Phase 2.5: Derive timeout from the per-call deadline.
         timeout_ms: input.timeout_ms
-          ?? remainingMs(ctx.config.deadlineMs, ctx.config.maxWebFetchTimeoutMs),
+          ?? remainingMs(ctx.config.deadlineMs, Math.min(DEFAULT_TIMEOUT_MS, ctx.config.maxWebFetchTimeoutMs)),
       });
     } finally {
       ctx.signal.removeEventListener('abort', onAbort);

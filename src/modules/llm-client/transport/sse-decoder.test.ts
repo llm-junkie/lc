@@ -653,6 +653,38 @@ describe('SSE decoder', () => {
     assert.equal(events[0].data, payload);
   });
 
+  test('newline-heavy batches do not repeatedly search the remaining suffix', async () => {
+    for (const separator of ['\n', '\r', '\r\n']) {
+      const lineCount = 2048;
+      const raw = `data: ${separator}`.repeat(lineCount)
+        + `data: {}${separator}${separator}`;
+      const originalIndexOf = String.prototype.indexOf;
+      let searchedChars = 0;
+      let events: SSEParsedEvent[];
+      // Count separator-search work instead of asserting machine-dependent time.
+      String.prototype.indexOf = function (search, position = 0) {
+        const result = originalIndexOf.call(this, search, position);
+        if (search === '\r' || search === '\n') {
+          searchedChars += result < 0
+            ? this.length - position
+            : result - position + 1;
+        }
+        return result;
+      };
+      try {
+        events = await collectEvents(decodeSSE(stringStream([raw])));
+      } finally {
+        String.prototype.indexOf = originalIndexOf;
+      }
+      assert.equal(events.length, 1);
+      assert.equal(events[0].data, '\n'.repeat(lineCount) + '{}');
+      assert.ok(
+        searchedChars <= raw.length * 2,
+        `separator searches examined ${searchedChars} characters for ${raw.length} input characters`,
+      );
+    }
+  });
+
   test('rejects one event above the decoded-character cap', async () => {
     const oversized = `data: ${'x'.repeat(MAX_SSE_EVENT_CHARS)}\n\n`;
     await assert.rejects(

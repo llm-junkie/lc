@@ -1,10 +1,10 @@
 import { isTauri } from '../../utils/saveBlob.ts';
 import { toast } from '../../utils/toast.ts';
 
-export const LC_GITHUB_URL = 'https://github.com/llm-junkie/llm-client';
-export const LC_ISSUES_URL = 'https://github.com/llm-junkie/llm-client/issues';
+export const LC_GITHUB_URL = 'https://github.com/llm-junkie/lc';
+export const LC_ISSUES_URL = `${LC_GITHUB_URL}/issues`;
 export const LC_TEAM_LEAD_URL = 'https://github.com/rathaROG';
-export const LC_CONTRIBUTORS_URL = 'https://github.com/llm-junkie/llm-client/graphs/contributors';
+export const LC_CONTRIBUTORS_URL = `${LC_GITHUB_URL}/graphs/contributors`;
 
 export async function openSupportLink(url: string): Promise<void> {
   try {

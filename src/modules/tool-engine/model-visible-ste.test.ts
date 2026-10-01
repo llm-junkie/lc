@@ -767,3 +767,10 @@ test('checks the native image input-limit remedy', () => {
   assert.ok(literal);
   assertStructuralSte('native image input limit', literal[1]);
 });
+
+test('checks the native decoded-read output-limit remedy', () => {
+  const source = readPdfNativeText('src-tauri/src/tools/fs_ops.rs', 'utf8');
+  const literal = source.match(/"(Selected content is [^"\r\n]+)"/);
+  assert.ok(literal);
+  assertStructuralSte('native decoded-read output limit', literal[1]);
+});

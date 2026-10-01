@@ -43,7 +43,7 @@ const schema = z.object({
     HARD_CAP_READ_BYTES,
     `max_bytes must be at most ${HARD_CAP_READ_BYTES} (32 MiB). Use a smaller byte limit or omit it to keep the default 1 MiB cap.`,
   ).optional(),
-});
+}).strict();
 
 export type ReadFileInput = z.infer<typeof schema>;
 

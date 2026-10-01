@@ -20,7 +20,7 @@ export const CURRENT_TIME_TZ_LIMIT_MESSAGE =
 const schema = z.object({
   tz: z.string().max(CURRENT_TIME_TZ_MAX_CHARACTERS, CURRENT_TIME_TZ_LIMIT_MESSAGE).optional(),
   format: z.enum(['iso', 'rfc2822', 'unix_ms']).optional(),
-});
+}).strict();
 
 export type GetCurrentTimeInput = z.infer<typeof schema>;
 

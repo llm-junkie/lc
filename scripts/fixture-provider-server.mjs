@@ -13,6 +13,8 @@
  *   stream open for 60 seconds to separate live accumulation from completion.
  * - AUDIT_LONG_REASONING_BOUNDARY_1024 emits 8 MiB as repeated 1,024-character
  *   runs separated by spaces to exercise the tokenizer guard boundary.
+ * - AUDIT_LONG_REASONING_MATH emits 4,003 characters of unfinished display
+ *   math, then holds for 10 seconds to exercise dense live KaTeX expansion.
  * - `AUDIT_CONCURRENCY` emits a two-minute text stream so browser acceptance
  *   can observe three live chats, fourth-chat refusal, and targeted cancel.
  *
@@ -182,6 +184,35 @@ async function openAiLongReasoningStream(res) {
         delta: { content: 'Long-reasoning fixture completed.' },
         finish_reason: 'stop',
       }],
+    });
+    writeSse(res, '[DONE]');
+    res.end();
+  }
+}
+
+async function openAiMathReasoningStream(res) {
+  openSse(res);
+  writeSse(res, {
+    id: 'chatcmpl-fixture-math',
+    object: 'chat.completion.chunk',
+    choices: [{
+      index: 0,
+      delta: { reasoning_content: '$$\n' + 'x+y\n'.repeat(1000) },
+      finish_reason: null,
+    }],
+  });
+  // Stop the hold promptly when a checker or a browser cancels the response.
+  await new Promise((resolve) => {
+    const finish = () => { clearTimeout(timer); res.off('close', finish); resolve(); };
+    const timer = setTimeout(finish, 10_000);
+    res.once('close', finish);
+    if (res.destroyed) finish();
+  });
+  if (!res.destroyed) {
+    writeSse(res, {
+      id: 'chatcmpl-fixture-math',
+      object: 'chat.completion.chunk',
+      choices: [{ index: 0, delta: { content: 'Math reasoning fixture completed.' }, finish_reason: 'stop' }],
     });
     writeSse(res, '[DONE]');
     res.end();
@@ -417,7 +448,9 @@ const server = createServer(async (req, res) => {
 
     if (pathname === '/openai/v1/chat/completions') {
       const body = await readJson(req);
-      if (requestText(body).includes('AUDIT_LONG_REASONING_BOUNDARY_1024')) {
+      if (requestText(body).includes('AUDIT_LONG_REASONING_MATH')) {
+        await openAiMathReasoningStream(res);
+      } else if (requestText(body).includes('AUDIT_LONG_REASONING_BOUNDARY_1024')) {
         await openAiBoundaryReasoningStream(res);
       } else if (requestText(body).includes('AUDIT_LONG_REASONING_UNBROKEN_HOLD')) {
         await openAiUnbrokenReasoningStream(res, true);

@@ -50,6 +50,7 @@ import type { RunShellResult } from '../sandbox-bridge';
 
 export const RUN_SHELL_STDIN_CAP_BYTES = 1_048_576;
 export const RUN_SHELL_TIMEOUT_CAP_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 const schema = z.object({
   cmd: z.string(),
@@ -67,7 +68,7 @@ const schema = z.object({
       { message: 'stdin must be at most 1 MiB when encoded as UTF-8' },
     )
     .optional(),
-});
+}).strict();
 
 export type RunShellInput = z.infer<typeof schema>;
 
@@ -140,7 +141,7 @@ export const runShell: ToolHandler<RunShellInput, RunShellResult> = {
         // Phase 2.5: Derive timeout from the per-call deadline.
         // This ensures compound tools share one budget.
         timeout_ms: input.timeout_ms
-          ?? remainingMs(ctx.config.deadlineMs, ctx.config.maxShellTimeoutMs),
+          ?? remainingMs(ctx.config.deadlineMs, Math.min(DEFAULT_TIMEOUT_MS, ctx.config.maxShellTimeoutMs)),
       });
     } finally {
       ctx.signal.removeEventListener('abort', onAbort);

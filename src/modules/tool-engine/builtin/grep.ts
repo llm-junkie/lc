@@ -27,7 +27,7 @@ const schema = z.object({
      * for this search when present.
      */
     include: z.string().optional(),
-  })).min(
+  }).strict()).min(
     1,
     'searches must contain at least one entry. Add a path-pattern search and retry.',
   ).max(
@@ -69,7 +69,7 @@ const schema = z.object({
    * dist, ...). Default false.
    */
   include_excluded_dirs: z.boolean().optional(),
-}).superRefine((value, ctx) => {
+}).strict().superRefine((value, ctx) => {
   if ((value.context_lines ?? 0) > 0 && (value.output_mode ?? 'content') !== 'content') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

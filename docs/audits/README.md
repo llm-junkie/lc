@@ -632,6 +632,30 @@ do not consume template codes. Retiring a template sets its status to `Retired`,
 and keeps the file under its original name. The code is then not reused.
 Existing audit records still resolve to the original template.
 
+## Reusable evidence tools
+
+The [script catalogue](../../scripts/README.md) documents portable checks,
+fixtures, and benchmarks separately from dated run evidence. Useful starting
+commands are:
+
+- `npm run check:tool-surface` for registry, argument, adapter, and payload checks.
+- `npm run check:tool-transcripts -- --fixture` for scanner controls, then
+  `npm run check:tool-transcripts` for the committed historical sessions.
+  Pass a bulk-export JSON path to inspect another sample. The checker reports
+  argument changes without executing any stored command.
+- `npm run bench:sse` for decoder scaling and before/after output fingerprints.
+- `npm run bench:reasoning` for append-only accounting and hostile live-window
+  CPU measurements.
+- `npm run fixture:providers`, followed in another terminal by
+  `npm run check:reasoning-fixture`, for an exact unfinished-math input to the
+  normal composer and live preview.
+
+Keep generated reports outside the tracked source, for example under the
+ignored `.tmp/` directory. Stamp the code revision and runtime used in each
+run's evidence. Historical transcripts do not prove current model behavior;
+CPU and server-render measurements do not prove browser responsiveness. Use
+the normal app and browser performance tools for interaction claims.
+
 ## Contract ownership map
 
 The audit archive records provenance. Contract documents own durable

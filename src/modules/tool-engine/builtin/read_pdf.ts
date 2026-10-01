@@ -29,7 +29,7 @@ const schema = z.object({
     HARD_CAP_BYTES,
     `max_bytes must be at most ${HARD_CAP_BYTES} (100 MiB). Use a smaller byte limit or omit it to keep the default cap.`,
   ).optional(),
-});
+}).strict();
 
 
 export type ReadPdfInput = z.infer<typeof schema>;

@@ -13,7 +13,7 @@ export const SKILL_ID_LIMIT_MESSAGE =
 const schema = z.object({
   /** Omit to list available skills; provide an ID to retrieve full Markdown. */
   id: z.string().max(SKILL_ID_MAX_CHARACTERS, SKILL_ID_LIMIT_MESSAGE).optional(),
-});
+}).strict();
 
 export type SkillInput = z.infer<typeof schema>;
 

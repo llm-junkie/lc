@@ -707,6 +707,20 @@ fn read_single_file_cancellable(
             .join("\n")
     };
 
+    // UTF-16 can expand during transcoding even when the source fits.
+    // Apply the output limit to the selected UTF-8 content in this path,
+    // as the streaming and buffered range readers already do.
+    if content.len() as u64 > cap {
+        return err_entry_with_code(
+            path,
+            "too_large",
+            &format!(
+                "Selected content is {} bytes. max_bytes permits {} bytes. Narrow the line range or increase max_bytes.",
+                content.len(), cap
+            ),
+        );
+    }
+
     serde_json::json!({
         "path": path,
         "content": content,
@@ -3827,6 +3841,54 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    #[tokio::test]
+    async fn decoded_read_output_obeys_the_byte_cap_for_both_utf16_orders() {
+        let root = tempdir();
+        let file = root.join("expanding.txt");
+        let text = "漢漢漢漢漢\na";
+        let output_bytes = text.len() as u64;
+        for kind in [Utf16Kind::Le, Utf16Kind::Be] {
+            let raw = utf16_bytes(text, kind);
+            assert_eq!(raw.len() as u64, output_bytes - 1);
+            std::fs::write(&file, &raw).unwrap();
+            for (start_line, end_line) in [(None, None), (Some(1), Some(2))] {
+                let request = |max_bytes| ReadFileRequest {
+                    paths: vec![file.to_string_lossy().into_owned()],
+                    allowed_roots: Some(roots_from(&root)),
+                    start_line,
+                    end_line,
+                    max_bytes: Some(max_bytes),
+                    ..Default::default()
+                };
+                let accepted = tool_read_file(request(output_bytes)).await.unwrap();
+                assert_eq!(accepted["results"][0]["content"], text);
+                assert_eq!(accepted["results"][0]["size_bytes"], raw.len());
+                assert!(accepted["results"][0]["sha256"].is_string());
+
+                let rejected = tool_read_file(request(output_bytes - 1)).await.unwrap();
+                let entry = &rejected["results"][0];
+                assert_eq!(entry["error_code"], "too_large", "{entry}");
+                assert_eq!(entry["content"], "");
+                assert_eq!(entry["path"], file.to_string_lossy().as_ref());
+                assert!(!entry["truncated"].as_bool().unwrap());
+                assert!(entry["error"].as_str().unwrap().contains("17 bytes"));
+                assert!(entry["error"].as_str().unwrap().contains("16 bytes"));
+            }
+            let narrowed = tool_read_file(ReadFileRequest {
+                paths: vec![file.to_string_lossy().into_owned()],
+                allowed_roots: Some(roots_from(&root)),
+                start_line: Some(2),
+                end_line: Some(2),
+                max_bytes: Some(output_bytes - 1),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+            assert_eq!(narrowed["results"][0]["content"], "a");
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     /// A ranged read from a UTF-16 source larger than the in-memory cap
     /// transcodes and selects lines by their transcoded numbering.
     #[test]
@@ -5277,6 +5339,336 @@ mod tests {
                 "{name} is a PNG whatever it is called"
             );
         }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn read_image_opens_every_documented_linked_format_at_the_path_cap() {
+        let root = tempdir();
+        let formats = [
+            image::ImageFormat::Png,
+            image::ImageFormat::Jpeg,
+            image::ImageFormat::Gif,
+            image::ImageFormat::WebP,
+            image::ImageFormat::Bmp,
+        ];
+        let mut paths = Vec::new();
+        for (index, format) in formats.iter().enumerate() {
+            let mut bytes = Vec::new();
+            image::DynamicImage::ImageRgb8(image::RgbImage::new(4, 4))
+                .write_to(&mut std::io::Cursor::new(&mut bytes), *format)
+                .unwrap();
+            let path = root.join(format!("format-{index}.data"));
+            std::fs::write(&path, bytes).unwrap();
+            paths.push(path.to_string_lossy().into_owned());
+        }
+        let requested: Vec<String> = paths
+            .iter()
+            .cycle()
+            .take(MAX_DELIVERY_IMAGE_COUNT)
+            .cloned()
+            .collect();
+        let result = tool_read_image(ReadImageRequest {
+            paths: requested,
+            allowed_roots: Some(roots_from(&root)),
+            max_bytes: None,
+            encoding: Some("original".into()),
+            downscale: 1.0,
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            result["images"].as_array().unwrap().len(),
+            MAX_DELIVERY_IMAGE_COUNT
+        );
+        for (index, entry) in result["images"].as_array().unwrap().iter().enumerate() {
+            assert!(entry["error"].is_null(), "{entry}");
+            assert_eq!(entry["mime"], formats[index % formats.len()].to_mime_type());
+            assert_eq!(entry["original_wh"], serde_json::json!([4, 4]));
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn write_request_byte_and_entry_limits_enforce_before_mutation() {
+        let root = tempdir();
+        let make_file = |name: &str, content: String| WriteFileEntry {
+            path: root.join(name).to_string_lossy().into_owned(),
+            content,
+            expected_sha256: None,
+        };
+        let request = |files| WriteFileRequest {
+            files,
+            mode: None,
+            allowed_roots: Some(roots_from(&root)),
+        };
+        let too_big = tool_write_file(request(vec![make_file(
+            "oversized",
+            "x".repeat(MAX_WRITE_TARGET_BYTES + 1),
+        )]))
+        .await
+        .unwrap_err();
+        assert!(matches!(too_big, ToolError::TooLarge(_)));
+        assert!(!root.join("oversized").exists());
+
+        let maximum = "x".repeat(MAX_WRITE_TARGET_BYTES);
+        let over_total = tool_write_file(request(vec![
+            make_file("uncommitted-a", maximum.clone()),
+            make_file("uncommitted-b", maximum.clone()),
+            make_file("uncommitted-c", "x".into()),
+        ]))
+        .await
+        .unwrap_err();
+        assert!(matches!(over_total, ToolError::TooLarge(_)));
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+
+        let mut files = vec![
+            make_file("maximum-a", maximum.clone()),
+            make_file("maximum-b", maximum),
+        ];
+        files.extend(
+            (2..FILESYSTEM_BATCH_MAX_ENTRIES)
+                .map(|index| make_file(&format!("empty-{index}"), String::new())),
+        );
+        let accepted = tool_write_file(request(files)).await.unwrap();
+        let entries = accepted["results"].as_array().unwrap();
+        assert_eq!(entries.len(), FILESYSTEM_BATCH_MAX_ENTRIES);
+        assert!(entries
+            .iter()
+            .all(|entry| entry.get("error").is_none_or(|error| error.is_null())));
+        assert_eq!(
+            std::fs::metadata(root.join("maximum-a")).unwrap().len(),
+            MAX_WRITE_TARGET_BYTES as u64
+        );
+        assert_eq!(
+            std::fs::metadata(root.join("maximum-b")).unwrap().len(),
+            MAX_WRITE_TARGET_BYTES as u64
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn shared_awkward_files_agree_across_text_and_metadata_tools() {
+        use super::super::{apply_patch, edit, glob, grep};
+        let root = tempdir();
+        let file = root.join(".shared.txt");
+        let path = file.to_string_lossy().into_owned();
+        let roots = roots_from(&root);
+        let cases = [
+            ("utf8", b"needle\n".to_vec(), None, None),
+            (
+                "utf16-le",
+                utf16_bytes("needle\n", Utf16Kind::Le),
+                None,
+                Some("files_transcoded"),
+            ),
+            (
+                "utf16-be",
+                utf16_bytes("needle\n", Utf16Kind::Be),
+                None,
+                Some("files_transcoded"),
+            ),
+            (
+                "nul",
+                b"needle\0".to_vec(),
+                Some("binary_detected"),
+                Some("skipped_binary"),
+            ),
+            (
+                "invalid-utf8",
+                b"needle\xff".to_vec(),
+                Some("encoding_not_utf8"),
+                None,
+            ),
+        ];
+        for (label, bytes, read_error, grep_counter) in cases {
+            std::fs::write(&file, &bytes).unwrap();
+            let read = tool_read_file(ReadFileRequest {
+                paths: vec![path.clone()],
+                allowed_roots: Some(roots.clone()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+            if let Some(code) = read_error {
+                assert_eq!(read["results"][0]["error_code"], code, "{label}: {read}");
+                assert_eq!(read["results"][0]["content"], "");
+            } else {
+                assert_eq!(read["results"][0]["content"], "needle\n", "{label}: {read}");
+            }
+            let search = grep::tool_grep(
+                serde_json::from_value(serde_json::json!({
+                    "searches": [{ "path": path, "pattern": "needle" }], "allowed_roots": roots,
+                }))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+            let entry = &search["results"][0];
+            assert_eq!(
+                entry["matches"].as_array().unwrap().len(),
+                if label == "nul" { 0 } else { 1 },
+                "{label}: {entry}"
+            );
+            if label == "invalid-utf8" {
+                assert!(entry["matches"][0]["content"]
+                    .as_str()
+                    .unwrap()
+                    .contains('\u{fffd}'));
+            }
+            if let Some(counter) = grep_counter {
+                assert_eq!(entry[counter], 1, "{label}: {entry}");
+            }
+
+            let edited = edit::tool_edit(serde_json::from_value(serde_json::json!({
+                "files": [{ "path": path, "old_string": "needle", "new_string": "changed" }], "allowed_roots": roots,
+            })).unwrap()).await.unwrap();
+            let refuses_mutation = label != "utf8";
+            assert_eq!(
+                edited["results"][0]["error"].is_string(),
+                refuses_mutation,
+                "{label}: {edited}"
+            );
+            if refuses_mutation {
+                assert_eq!(std::fs::read(&file).unwrap(), bytes);
+            }
+            std::fs::write(&file, &bytes).unwrap();
+            let patch = format!(
+                "*** Begin Patch\n*** Update File: {path}\n@@\n-needle\n+changed\n*** End Patch"
+            );
+            let planned =
+                apply_patch::tool_apply_patch_preflight(apply_patch::ApplyPatchPreflightRequest {
+                    patch: patch.clone(),
+                    allowed_roots: Some(roots.clone()),
+                })
+                .unwrap();
+            assert_eq!(std::fs::read(&file).unwrap(), bytes);
+            let patched = apply_patch::tool_apply_patch(apply_patch::ApplyPatchRequest {
+                patch,
+                allowed_roots: Some(roots.clone()),
+                plan_id: planned.plan_id,
+                call_id: None,
+                group_id: None,
+            })
+            .await;
+            assert_eq!(patched.is_err(), refuses_mutation, "{label}: {patched:?}");
+            if refuses_mutation {
+                assert_eq!(std::fs::read(&file).unwrap(), bytes);
+            }
+            std::fs::write(&file, &bytes).unwrap();
+
+            let written = tool_write_file(WriteFileRequest {
+                files: vec![WriteFileEntry {
+                    path: path.clone(),
+                    content: "replacement".into(),
+                    expected_sha256: None,
+                }],
+                mode: Some("overwrite".into()),
+                allowed_roots: Some(roots.clone()),
+            })
+            .await
+            .unwrap();
+            // Overwrite deliberately replaces arbitrary bytes, but never re-encodes marked UTF-16.
+            let marked = label.starts_with("utf16");
+            assert_eq!(
+                written["results"][0]["error"].is_string(),
+                marked,
+                "{label}: {written}"
+            );
+            if marked {
+                assert_eq!(std::fs::read(&file).unwrap(), bytes);
+            }
+            std::fs::write(&file, &bytes).unwrap();
+
+            let stat = tool_stat(StatRequest {
+                paths: vec![path.clone()],
+                allowed_roots: Some(roots.clone()),
+            })
+            .unwrap();
+            assert_eq!(stat["results"][0]["size_bytes"], bytes.len());
+            assert_eq!(stat["results"][0]["is_file"], true);
+            for include_hidden in [false, true] {
+                let listed = tool_list_dir(ListDirRequest {
+                    paths: vec![root.to_string_lossy().into_owned()],
+                    pattern: None,
+                    include_hidden: Some(include_hidden),
+                    max_entries: None,
+                    allowed_roots: Some(roots.clone()),
+                })
+                .await
+                .unwrap();
+                assert_eq!(
+                    listed["results"][0]["entries"].as_array().unwrap().len(),
+                    usize::from(include_hidden)
+                );
+                let found = glob::tool_glob_files(serde_json::from_value(serde_json::json!({
+                    "root": root, "pattern": "**/*.txt", "include_hidden": include_hidden, "allowed_roots": roots,
+                })).unwrap()).await.unwrap();
+                assert_eq!(
+                    found["matches"].as_array().unwrap().len(),
+                    usize::from(include_hidden)
+                );
+            }
+        }
+        std::fs::File::create(&file)
+            .unwrap()
+            .set_len(HARD_CAP_READ_BYTES + 1)
+            .unwrap();
+        let before_hash = hash_file_streaming(&file).unwrap();
+        let oversized = tool_read_file(ReadFileRequest {
+            paths: vec![path.clone()],
+            allowed_roots: Some(roots.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        assert_eq!(oversized["results"][0]["error_code"], "too_large");
+        let search = grep::tool_grep(
+            serde_json::from_value(serde_json::json!({
+                "searches": [{ "path": path, "pattern": "needle" }], "allowed_roots": roots,
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(search["results"][0]["skipped_large"], 1);
+        let edited = edit::tool_edit(serde_json::from_value(serde_json::json!({
+            "files": [{ "path": path, "old_string": "needle", "new_string": "changed" }], "allowed_roots": roots,
+        })).unwrap()).await.unwrap();
+        assert!(edited["results"][0]["error"].is_string());
+        let patch = format!(
+            "*** Begin Patch\n*** Update File: {path}\n@@\n-needle\n+changed\n*** End Patch"
+        );
+        let planned =
+            apply_patch::tool_apply_patch_preflight(apply_patch::ApplyPatchPreflightRequest {
+                patch: patch.clone(),
+                allowed_roots: Some(roots.clone()),
+            })
+            .unwrap();
+        assert!(
+            apply_patch::tool_apply_patch(apply_patch::ApplyPatchRequest {
+                patch,
+                allowed_roots: Some(roots.clone()),
+                plan_id: planned.plan_id,
+                call_id: None,
+                group_id: None,
+            })
+            .await
+            .is_err()
+        );
+        let appended = tool_write_file(WriteFileRequest {
+            files: vec![WriteFileEntry {
+                path: path.clone(),
+                content: "x".into(),
+                expected_sha256: None,
+            }],
+            mode: Some("append".into()),
+            allowed_roots: Some(roots.clone()),
+        })
+        .await
+        .unwrap();
+        assert!(appended["results"][0]["error"].is_string());
+        assert_eq!(hash_file_streaming(&file).unwrap(), before_hash);
         std::fs::remove_dir_all(root).unwrap();
     }
 

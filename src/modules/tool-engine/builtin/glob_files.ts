@@ -21,7 +21,7 @@ const schema = z.object({
     'max_results must be at most 5000. Use 5000 or a smaller result limit.',
   ).optional().describe(
     'Set the maximum returned results. The default is 1000.'),
-});
+}).strict();
 
 type Input = z.infer<typeof schema>;
 

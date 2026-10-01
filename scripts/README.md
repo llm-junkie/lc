@@ -84,6 +84,9 @@ generates the distributable dependency inventory.
 | [`check-release-version.mjs`](./check-release-version.mjs) | `npm run release:check` | That `package.json`, `tauri.conf.json`, `Cargo.toml`, and the release tag all state one version. |
 | [`generate-third-party-licenses.mjs`](./generate-third-party-licenses.mjs) | `npm run licenses:generate` / `:check` | Validates the production npm/Cargo license closure. `:check` writes nothing. Release preparation uses `:generate` to write ignored artifacts to `src-tauri/resources/THIRD_PARTY_LICENSES.md` and `public/excalidraw-assets/LICENSES.md`. During `npm run build`, `--fonts-only` emits only the small frontend font notice. Requires installed dependencies. |
 | [`check-provider-transport.ts`](./check-provider-transport.ts) | `npm run check:providers` | Transport and adapter behaviour against the local fixture server below. Start the fixture first. |
+| [`check-tool-surface.ts`](./check-tool-surface.ts) | `npm run check:tool-surface` | Checks the materialized tool registry, production argument validation, four adapter serializations, and whole-payload token budgets. Offline; no model calls. |
+| [`check-tool-transcripts.mjs`](./check-tool-transcripts.mjs) | `npm run check:tool-transcripts` | Checks call/result pairing in the committed LC conversation archive, extracted on demand, or a supplied bulk-export JSON path. Reports the input SHA-256, failures, per-entry errors, known notices, and argument changes on the next same-tool call in a later assistant message within the same user turn. Missing, orphaned, duplicate, or undecodable results fail the gate. Duplicate call IDs are reported because LC can intentionally suppress replays. Tool failures and repeated arguments are observations, not gate failures. `--fixture` verifies known-answer controls. It never executes stored commands or prints argument values, result bodies, or issue prose. Historical sessions do not prove current model recovery. |
+| [`check-reasoning-fixture.mjs`](./check-reasoning-fixture.mjs) | `npm run check:reasoning-fixture` | Checks the actual first SSE field emitted for `AUDIT_LONG_REASONING_MATH`: exactly 4,003 characters, including the two opening dollars and no closing delimiter. Requires the local provider fixture below. Uses `LC_AUDIT_FIXTURE_URL`, defaulting to `http://127.0.0.1:4786`, and cancels after checking the field. It verifies fixture fidelity, not browser responsiveness. |
 | [`check-docs-sync.mjs`](./check-docs-sync.mjs) | `npm run check:docs-sync` | Checks links, HTML targets, anchors, cited source paths, and orphans in living Markdown, excluding dated audit records as historical evidence.<br>The archive pass recognizes standard run codes and the fixed `a16a`–`a16m` subcodes. It rejects bare `a16` or unknown subcodes and scans non-binary files outside the archive for leakage.<br>It excludes Git metadata in directory and linked-worktree pointer-file form, standard generated or editor directories, and extracted fixture directories.<br>Fixture mode also excludes its root `expected.json` output and reproduces the linked-worktree pointer case.<br>`--fixture` verifies the known-answer set in `fixtures/docs-sync-check/`.<br>CI and the pre-release source-check job run the checker after dependency installation. |
 | [`check-test-registry.mjs`](./check-test-registry.mjs) | `npm run check:tests` | Confirms that the explicit file list in the `test` script matches `src/` in both directions. Every test file must run, and every listed path must exist. The list is manual because transitive imports determine whether a file uses `node --test` or `tsx --test`. A glob cannot determine the runner. |
 | [`check-import-extensions.mjs`](./check-import-extensions.mjs) | `npm run check:imports` | Confirms that relative value imports include their file extension and type-only imports do not. The Node test runner enforces this rule. Without this check, violations appear as `ERR_MODULE_NOT_FOUND` when a test reaches the module. |
@@ -96,12 +99,36 @@ list with a missing member.
 
 | Script | Handle | What it does |
 |---|---|---|
-| [`fixture-provider-server.mjs`](./fixture-provider-server.mjs) | `npm run fixture:providers` | Local HTTP server returning deterministic tool-call streams on OpenAI, Anthropic, and Responses envelopes. It also provides a CORS-safe pass-through to a running LM Studio. An OpenAI prompt containing `AUDIT_LONG_REASONING` emits a paced 256 KiB reasoning stream for preview-overlay checks. `AUDIT_FREEZE` retains the existing paced content stream. Reads `LC_AUDIT_FIXTURE_PORT`, `LC_AUDIT_LM_STUDIO_URL`, `LC_AUDIT_LM_STUDIO_MODEL`. |
+| [`fixture-provider-server.mjs`](./fixture-provider-server.mjs) | `npm run fixture:providers` | Local HTTP server returning deterministic tool-call streams on OpenAI, Anthropic, and Responses envelopes. It also provides a CORS-safe pass-through to a running LM Studio. OpenAI prompts select paced reasoning, dense unfinished math, or concurrency streams; see the reproduction below. `AUDIT_FREEZE` retains the existing paced content stream. Reads `LC_AUDIT_FIXTURE_PORT`, `LC_AUDIT_LM_STUDIO_URL`, `LC_AUDIT_LM_STUDIO_MODEL`. |
 | [`fixture-lc-archives.mjs`](./fixture-lc-archives.mjs) | imported by the archive fixture tests and benchmarks | Extracts the committed conversation and support-report 7z fixtures on first use. It puts each fixture in a separate subdirectory named after the archive. A `.extracted-ok` sentinel prevents later extractions. The `7z-wasm` development dependency decompresses files in-process. It uses 7-Zip 24.09 compiled to WASM and does not require system 7-Zip or a subprocess. The `.7z` files are tracked, and the extracted subdirectories are gitignored. |
 
 The client reads `LC_AUDIT_FIXTURE_URL` to locate the server. It also reads
 `LC_AUDIT_LM_STUDIO_MODEL`. Set these variables for `check:providers`, not for
 the server.
+
+### Repeatable live-reasoning inputs
+
+Start `npm run fixture:providers`, then run `npm run check:reasoning-fixture`
+in another terminal. With the defaults, configure an LC OpenAI Chat profile at
+`http://127.0.0.1:4786/openai/v1` and select the fixture model
+`audit-openai-chat`. Send the prompt through the normal composer, then open
+the reasoning preview while the turn is active:
+
+| Prompt | Input and observation window |
+|---|---|
+| `AUDIT_LONG_REASONING` | Paced 256 KiB reasoning with paragraph boundaries. |
+| `AUDIT_LONG_REASONING_UNBROKEN` | Paced 8 MiB single-block reasoning. |
+| `AUDIT_LONG_REASONING_UNBROKEN_HOLD` | Same single-block stream, held open for 60 seconds after its last delta. |
+| `AUDIT_LONG_REASONING_BOUNDARY_1024` | Paced 8 MiB in 1,024-character runs separated by spaces. |
+| `AUDIT_LONG_REASONING_MATH` | Exactly `'$$\n' + 'x+y\n'.repeat(1000)` in the first reasoning delta, held open for 10 seconds. |
+| `AUDIT_CONCURRENCY` | Two-minute text stream for three active chats, fourth-chat admission, and targeted cancellation. |
+
+Use browser performance tools to measure long tasks, DOM expansion, and
+interaction delay. The math input demonstrates why source-character limits
+alone do not bound live rendering cost; see the reasoning-preview limitations
+in [architecture.md](../docs/architecture.md). The emitted-field checker and
+CPU benchmarks do not establish browser frame or paint timing. These inputs
+require no source instrumentation or generated provider copy.
 
 ### LC archive fixtures — `fixtures/lc-*.7z`
 
@@ -165,8 +192,9 @@ None of these is called by `npm test`, `npm run build`, CI, or any hook.
 | Script | What it does |
 |---|---|
 | [`bench-hot-paths.mjs`](./bench-hot-paths.mjs) | Uses production modules to time UI-thread paths. It measures `countTokens`, the legacy per-frame recount, terminal compression, the maximum to-do snapshot index, and V8 parse cost of production chunks. Live checkpoints skip compression. The script reports numbers and makes no assertions. It measures CPU only. Frame time and heap measurements require a real browser. |
+| [`bench-sse.mjs`](./bench-sse.mjs) | `npm run bench:sse` measures valid newline-heavy events from about 64 KiB to 1 MiB, using LF, CRLF, CR, and fragmented LF buffers. Reports three timing samples, medians, event/issue counts, and output fingerprints with the decoder source hash and Node version. Pass an exported decoder path with `npm run bench:sse -- path/to/decoder.ts` for before/after comparisons. It makes no timing assertions and does not contact a service. Protocol correctness belongs to the decoder tests; these are local CPU measurements. |
 | [`bench-a06-markdown.mjs`](./bench-a06-markdown.mjs) | Times the synchronous Markdown pipeline behind a conversation open. It uses the exact `MessageBubble`/`ChunkedMarkdown` plugin chain: remarkGfm, remarkMath, sanitize/filename plugins, rehypeRaw, rehypeKatex, and rehype-prism-plus. It also uses `escapeNonMathDollars` and `countTokens`. It runs against the merged archive's `LC - Complete Tests` conversation with react-dom/server. It measures per-message cost for 14 real rendered messages, total work at n=50/100/200, and counting over 218 messages/~2.4 MiB. It reports numbers and makes no assertions. This is an SSR proxy for parsing and highlighting only. Browser commit, DOM, and layout require a real browser. Run `node --experimental-strip-types scripts/bench-a06-markdown.mjs`. The command extracts the fixture on demand. Evidence for audit A06. |
-| [`bench-reasoning-stream.mjs`](./bench-reasoning-stream.mjs) | Selects `LC - A13 by Qwen 3.8 Max` from the merged archive. It replays the ~549K/~895K reasoning fields through append-only streaming paths. It covers the production TokenMeter computation with warm settled-message caches and a sequential growing-field simulation. It compares full-prefix splitting with the bounded live chunk window. It also measures unbounded single chunks, hostile growing Markdown chunks, and delayed Tool History ownership. It reports numbers and makes no assertions. It measures CPU only. Browser DOM and layout require an app run. Run `node --import tsx scripts/bench-reasoning-stream.mjs`. The command extracts the fixture on demand. |
+| [`bench-reasoning-stream.mjs`](./bench-reasoning-stream.mjs) | `npm run bench:reasoning` selects `LC - A13 by Qwen 3.8 Max` from the merged archive. It replays the ~549K/~895K reasoning fields through append-only streaming paths. It covers the production TokenMeter computation with warm settled-message caches and a sequential growing-field simulation. It compares full-prefix splitting with the bounded live chunk window. It also measures unbounded single chunks, hostile growing Markdown chunks, and delayed Tool History ownership. Supplemental live-window shapes include control bytes, tokenizer sentinels, instruction-like text, base64, deep quotes, tables, many code blocks, and the exact 4,003-character unfinished math input. It reports CPU measurements and asserts a deterministic rescan bound, with no timing thresholds. Markdown uses the core remark/rehype chain as an SSR proxy, not the complete UI renderer. Browser DOM and layout require an app run. The command extracts the fixture on demand. |
 | [`fetch-models-dev.mjs`](./fetch-models-dev.mjs) | Downloads the models.dev catalogue snapshot. Skips the download if the file exists. `--force` downloads it again. |
 | [`build-models-cache.mjs`](./build-models-cache.mjs) | Reduces that snapshot to `public/models-cache.json`.<br>This script is a manual refresh and is not part of `npm run build`.<br>The cache is tracked. Therefore, ordinary builds read it directly and do not need the network. |
 

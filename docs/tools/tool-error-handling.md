@@ -29,6 +29,11 @@ Native failures cross the bridge as structured `ToolError` values. The runner pr
 
 `aborted` and `timeout` remain distinct statuses. Unknown, invalid, and unexposed calls are rejected before a popup. LC does not parse human-readable error strings to recover authorization scopes.
 
+An undeclared field in a closed tool input object returns `invalid_arguments`.
+The validation detail names the object path and rejected key. Remove or correct
+that key before a new call. This includes nested grep search entries. LC does
+not discard an unknown filter or limit and execute the remaining input.
+
 LC copies at most 16 KiB of UTF-8 validation detail or arbitrary thrown
 provider/native text into `issues[].message` and marks a shortened message.
 Structured recovery fields remain separate. Unknown operational calls use at

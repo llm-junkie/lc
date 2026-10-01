@@ -74,6 +74,15 @@ directory must be in an allowed root.
 
 ## Input / Output Schemas
 
+Tool input objects reject fields that their published JSON Schema does not
+declare. This rule also applies to closed nested objects, such as grep search
+entries. LC returns `invalid_arguments` with the object path and rejected field
+name before execution. Remove or correct that field, then submit a new call.
+LC does not silently discard a misspelled constraint and run a broader request.
+
+Open maps, such as shell `env`, still accept their declared arbitrary keys.
+Optional-field absence normalization remains unchanged.
+
 The runner limits the complete serialized result from each tool. The default
 limit is 4 MiB of UTF-8. `lc_read_file` and `lc_web_fetch` use 64 MiB because
 their documented per-item limits are larger. `lc_run_shell` uses 16 MiB because
@@ -127,8 +136,10 @@ Model-facing validation rejects larger per-file values. The native boundary
 separately clamps direct calls to the same per-file limit.
 
 Line numbers are positive 32-bit values. LC rejects larger numbers instead of
-treating them as omitted range endpoints. If a full source exceeds the limit,
-LC returns `error` with empty content. A focused range streams the source. It
+treating them as omitted range endpoints. If a full source or its returned
+UTF-8 content exceeds the limit, LC returns `error` with empty content.
+This output check also applies when UTF-16 transcoding expands a source that
+fits the byte limit. A focused range streams the source. It
 succeeds only if the selected content fits within the limit. An oversized range
 returns an error, not partial content.
 
@@ -1036,8 +1047,10 @@ machine-readable `suggested_call`.
 
 **Working directory:** An explicit `cwd` is canonicalized under the allowed roots and must already exist as a directory. An empty or whitespace-only `cwd` is treated as omitted. Missing paths, files used as directories, and out-of-root paths have distinct structured codes. Otherwise LC uses the first allowed root, then the system temporary directory.
 
-**Timeout:** Model-facing validation rejects `timeout_ms` above 120,000. It
-does not silently shorten it. A timeout returns `timed_out: true`,
+**Timeout:** Omitted `timeout_ms` defaults to 30 seconds.
+A shorter remaining round deadline can reduce this default.
+Model-facing validation rejects `timeout_ms` above 120,000.
+It does not silently shorten it. A timeout returns `timed_out: true`,
 `exit_code: null`, and capped output captured before termination. User
 cancellation returns a separate aborted status.
 **Stdin:** Up to 1 MiB of UTF-8 data, validated in JS and enforced again by Rust before spawn.  
@@ -1105,6 +1118,9 @@ remain available. LC disables automatic redirects. A bounded manual loop
 resolves, validates, and pins each hop. Blocked redirects return `blocked_host`,
 not a successful 3xx.
 **Strip modes:** `minimal` keeps `<script>` blocks (SPA-friendly), `clean` removes all HTML tags, `raw` returns unmodified.
+
+Omitted `timeout_ms` defaults to ten seconds.
+A shorter remaining round deadline can reduce this default.
 
 The model-facing schema rejects values above the 32 MiB body limit or 30,000 ms
 timeout. It does not silently clamp them. The native boundary has the same

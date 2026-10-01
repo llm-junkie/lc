@@ -12,6 +12,7 @@ import { TokenCounter } from './token-counter.ts';
 import { countTokens, MAX_FULL_TOKEN_TEXT_CHARS } from '../../utils/tokens.ts';
 import { WHITEBOARD_ISSUE_FIXTURES } from '../../whiteboard/contract-fixtures.ts';
 import { archiveToolCallId } from './message-history.ts';
+import { buildTodoSnapshotIndex } from '../tool-engine/todo-state.ts';
 import 'fake-indexeddb/auto';
 
 class MemoryStorage implements Storage {
@@ -3219,6 +3220,149 @@ describe('provider-state request assembly', () => {
       assert.equal(JSON.stringify(wire).includes('signed-reasoning-survives'), true);
       assert.equal(wire.some((item) => item.type === 'message' && item.role === 'assistant'), true);
     } finally {
+      fixture.cleanup();
+    }
+  });
+});
+
+describe('Tool batch boundary and foundation ordering', () => {
+  it('accepts 64 calls, publishes reverse completion eagerly, and sends every paired result together', { timeout: 5_000 }, async (testContext) => {
+    const fixture = createFixture({
+      enabled: true,
+      web_access_enabled: true,
+      tool_grants: ['lc_get_current_time'],
+      max_tool_calls_per_batch: 64,
+    });
+    const original = HANDLERS_BY_NAME.get('lc_get_current_time');
+    assert.ok(original);
+    const calls = Array.from({ length: 64 }, (_, index) => ({
+      id: `maximum-batch-${index}`,
+      type: 'function' as const,
+      function: { name: 'lc_get_current_time', arguments: '{}' },
+    }));
+    const gates = new Map(calls.map((call) => [call.id, Promise.withResolvers<void>()]));
+    const allStarted = Promise.withResolvers<void>();
+    const started: string[] = [];
+    let sent: ChatMessage[] = [];
+    HANDLERS_BY_NAME.set('lc_get_current_time', {
+      ...original,
+      run: async (_input, ctx) => {
+        const id = ctx.identity.modelToolCallId;
+        started.push(id);
+        if (started.length === calls.length) allStarted.resolve();
+        await gates.get(id)?.promise;
+        return { callId: id };
+      },
+    });
+    chatPostResponse = (init) => {
+      sent = JSON.parse(String(init?.body)).messages;
+      return stopStreamResponse();
+    };
+    const results = () => useConversations.getState().byId[fixture.conversationId]!.messages
+      .filter((message) => message.role === 'tool');
+    const controller = new AbortController();
+    let pending: Promise<void> | undefined;
+    try {
+      pending = runStreamWithTools(fixture.conversationId, AbortSignal.any([controller.signal, testContext.signal]),
+        fixture.options(clientWith(async () => result({ finish_reason: 'tool_calls', tool_calls: calls }))));
+      await Promise.race([allStarted.promise, pending.then(() => {
+        throw new Error('The tool loop ended before every maximum-batch handler started.');
+      })]);
+      assert.deepEqual(started, calls.map((call) => call.id));
+      for (const [index, call] of [...calls].reverse().entries()) {
+        gates.get(call.id)!.resolve();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        assert.equal(results().length, index + 1);
+        assert.equal(results().at(-1)?.tool_call_id, call.id);
+      }
+      await pending;
+      assert.equal(new Set(results().map((message) => message.tool_call_id)).size, 64);
+      for (const message of results()) {
+        assert.deepEqual(decodeLcResultJson(message.content)?.data, { callId: message.tool_call_id });
+      }
+      const assistantIndex = sent.findIndex((message) => message.tool_calls?.length === 64);
+      assert.ok(assistantIndex >= 0);
+      const answers = sent.slice(assistantIndex + 1, assistantIndex + 65);
+      assert.equal(answers.length, 64);
+      assert.ok(answers.every((message) => message.role === 'tool'));
+      assert.deepEqual(new Set(answers.map((message) => message.tool_call_id)), new Set(calls.map((call) => call.id)));
+      assert.equal(fixture.finalizations(), 1);
+    } finally {
+      controller.abort();
+      for (const gate of gates.values()) gate.resolve();
+      await pending?.catch(() => undefined);
+      chatPostResponse = null;
+      HANDLERS_BY_NAME.set('lc_get_current_time', original);
+      fixture.cleanup();
+    }
+  });
+
+  it('keeps paired to-do updates and declared list order after reverse completion', { timeout: 5_000 }, async (testContext) => {
+    const fixture = createFixture({ enabled: true });
+    const original = HANDLERS_BY_NAME.get('lc_todo_write');
+    assert.ok(original);
+    const inputs = [
+      { todos: [
+        { id: 1, title: 'Inspect', status: 'not-started' },
+        { id: 2, title: 'Verify', status: 'not-started' },
+      ] },
+      { todos: [
+        { id: 1, title: 'Inspect', status: 'in-progress' },
+        { id: 2, title: 'Verify', status: 'in-progress' },
+      ] },
+      { todos: [
+        { id: 1, title: 'Inspect', status: 'completed', completion_evidence: 'Source inspected.' },
+        { id: 2, title: 'Verify', status: 'completed', completion_evidence: 'Tests passed.' },
+      ] },
+      { todos: [{ id: 50, title: 'Second list', status: 'not-started' }] },
+    ];
+    const calls = inputs.map((input, index) => ({
+      id: `foundation-order-${index}`,
+      type: 'function' as const,
+      function: { name: 'lc_todo_write', arguments: JSON.stringify(input) },
+    }));
+    const gates = new Map(calls.map((call) => [call.id, Promise.withResolvers<void>()]));
+    const allStarted = Promise.withResolvers<void>();
+    let started = 0;
+    HANDLERS_BY_NAME.set('lc_todo_write', {
+      ...original,
+      run: async (input, ctx) => {
+        if (++started === calls.length) allStarted.resolve();
+        await gates.get(ctx.identity.modelToolCallId)?.promise;
+        return original.run(input, ctx);
+      },
+    });
+    chatPostResponse = () => stopStreamResponse();
+    const controller = new AbortController();
+    let pending: Promise<void> | undefined;
+    try {
+      pending = runStreamWithTools(fixture.conversationId, AbortSignal.any([controller.signal, testContext.signal]),
+        fixture.options(clientWith(async () => result({ finish_reason: 'tool_calls', tool_calls: calls }))));
+      await Promise.race([allStarted.promise, pending.then(() => {
+        throw new Error('The tool loop ended before every to-do handler started.');
+      })]);
+      for (const call of [...calls].reverse()) {
+        gates.get(call.id)!.resolve();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await pending;
+      const messages = useConversations.getState().byId[fixture.conversationId]!.messages;
+      const results = messages.filter((message) => message.role === 'tool');
+      assert.deepEqual(results.map((message) => message.tool_call_id), [...calls].reverse().map((call) => call.id));
+      assert.ok(results.every((message) => !message.tool_is_error));
+      const assistant = messages.find((message) => message.id === fixture.assistantId);
+      assert.deepEqual(assistant?.tool_calls?.map((call) => call.id), calls.map((call) => call.id));
+      const snapshots = buildTodoSnapshotIndex(messages);
+      const lists = snapshots.turnSnapshotsByAssistantId.get(fixture.assistantId);
+      assert.deepEqual(lists?.map((snapshot) => snapshot.toolCallId), [calls[2].id, calls[3].id]);
+      assert.equal(lists?.[0].completed, 2);
+      assert.equal(snapshots.latest?.toolCallId, calls[3].id);
+    } finally {
+      controller.abort();
+      for (const gate of gates.values()) gate.resolve();
+      await pending?.catch(() => undefined);
+      chatPostResponse = null;
+      HANDLERS_BY_NAME.set('lc_todo_write', original);
       fixture.cleanup();
     }
   });

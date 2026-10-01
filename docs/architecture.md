@@ -699,6 +699,9 @@ live work without truncating the stored message:
 - Only the final growing chunk becomes plain text when it exceeds 4,096
   characters. This protects an unfinished fence, table, math block, or long
   paragraph without discarding Markdown from settled chunks.
+  These character limits bound source size, rather than DOM node count or render
+  duration. Dense display math below the growing-chunk threshold can still
+  produce a large KaTeX tree and block a frame.
 - Copy continues to use the complete canonical value. The settled assistant
   bubble returns to complete Markdown rendering.
 - Request construction and `TokenMeter` share one forward-pass Tool History
@@ -731,6 +734,11 @@ live work without truncating the stored message:
   Closing and reopening the preview resets the budget. Copy still uses the
   complete canonical value, and repeated expansion can show the full settled
   Markdown render.
+
+  Completed previews first derive Markdown-safe chunk offsets from the complete
+  canonical field. The initial budget bounds display and Markdown rendering,
+  but it does not bound that one-time scan. Reopening recomputes the offsets
+  after the preview body unmounts.
 
   That full render
   is not virtualized. Its measurements are separate from the bounded initial

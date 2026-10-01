@@ -176,14 +176,12 @@ function* processDecodedText(
     if (text.startsWith('\n')) cursor = 1;
   }
 
+  // Search for either separator in one forward pass. Separate CR and LF
+  // searches repeatedly scan the remaining suffix when one kind is absent.
+  const lineBreak = /[\r\n]/g;
   while (cursor < text.length) {
-    const nextCr = text.indexOf('\r', cursor);
-    const nextLf = text.indexOf('\n', cursor);
-    const lineEnd = nextCr < 0
-      ? nextLf
-      : nextLf < 0
-        ? nextCr
-        : Math.min(nextCr, nextLf);
+    lineBreak.lastIndex = cursor;
+    const lineEnd = lineBreak.exec(text)?.index ?? -1;
 
     if (lineEnd < 0) {
       appendLinePart(state, text.slice(cursor));

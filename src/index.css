@@ -9319,6 +9319,96 @@ button.model-group-header-no-before {
   color: var(--text);
 }
 
+.about-modal-links {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.about-modal-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.about-modal-links a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.about-modal-link:hover,
+.about-modal-links a:hover {
+  text-decoration: underline;
+}
+
+.about-modal.about-modal-licenses {
+  width: min(900px, calc(100vw - 32px));
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+}
+
+.third-party-licenses-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.third-party-licenses-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.third-party-licenses-content {
+  min-height: 0;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.third-party-licenses-content h2 {
+  font-size: 16px;
+  margin: 24px 0 8px;
+}
+
+.third-party-licenses-content h3 {
+  font-size: 14px;
+  margin: 20px 0 8px;
+}
+
+.third-party-licenses-content pre {
+  max-height: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.third-party-licenses-table {
+  overflow-x: auto;
+}
+
+.third-party-licenses-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.third-party-licenses-table th,
+.third-party-licenses-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
 /* Keyboard shortcuts modal — sectioned list of kbd + action, scrollable.
    Solid elevated card on a dim backdrop (same feel as Settings). */
 .kbd-modal {

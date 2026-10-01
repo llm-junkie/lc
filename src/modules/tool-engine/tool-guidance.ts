@@ -272,8 +272,9 @@ export const READ_FILE_GUIDANCE = defineCatalog({
       title: 'Size limits',
       aliases: ['max bytes', 'large files', 'oversized read'],
       guidance:
-        'A whole-file read and a selected range use the same default 1 MiB cap. max_bytes can raise the cap to 32 MiB. ' +
-        'LC returns an error instead of a partial body when selected output exceeds the cap.',
+        'A whole-file read checks both source bytes and returned UTF-8 bytes against max_bytes. ' +
+        'A selected range checks its returned UTF-8 bytes. The default cap is 1 MiB, and max_bytes can raise it to 32 MiB. ' +
+        'LC returns an error instead of a partial body when either applicable check exceeds the cap.',
     },
     {
       title: 'Encoding',

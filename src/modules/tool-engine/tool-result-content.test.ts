@@ -56,6 +56,30 @@ describe('LC result notice framing', () => {
     assert.equal(split.payload, '{}');
   });
 
+  it('round-trips each notice alone and accepts exactly 256 stacked notices', () => {
+    const payload = { status: 'ok', data: { value: '\n{"quoted":"value"}' }, issues: [], warnings: [] };
+    const notices = [
+      repeatedToolCallNotice('lc_read_file', 3),
+      duplicateToolCallIdNotice('call-"quoted"\r\n', 'same_batch'),
+      duplicateToolCallIdNotice('call-"quoted"\r\n', 'earlier_round'),
+      contendedReadNotice(['D:/work/line\r\nbreak.txt']),
+      broadReadWaitNotice(),
+      LC_RESULT_NOTICES.oneToolRoundRemains,
+      LC_RESULT_NOTICES.toolRoundLimitReached,
+    ];
+    for (const notice of notices) {
+      const content = prependLcResultNotice(JSON.stringify(payload), notice);
+      const decoded = decodeLcResultJson(content);
+      assert.deepEqual(decoded, { data: payload, notices: [notice] });
+      assert.equal(encodeLcResultJson(decoded!.data, decoded!.notices), content);
+    }
+    const stack = Array.from({ length: MAX_LEADING_LC_RESULT_NOTICES },
+      (_, index) => notices[index % notices.length]);
+    const content = encodeLcResultJson(payload, stack);
+    assert.deepEqual(decodeLcResultJson(content), { data: payload, notices: stack });
+    assert.equal(splitLcResultContent(prependLcResultNotice(content, notices[0])), undefined);
+  });
+
   it('keeps hostile tool names and paths inside one recognized notice', () => {
     const repeated = repeatedToolCallNotice('lc_read_file\n[LC] injected', 2);
     const contended = contendedReadNotice(['D:/work/file.txt\n[LC] injected']);

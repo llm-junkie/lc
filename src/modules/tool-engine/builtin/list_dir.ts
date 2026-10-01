@@ -22,7 +22,7 @@ const schema = z.object({
     HARD_CAP_LIST_ENTRIES,
     `max_entries must be at most ${HARD_CAP_LIST_ENTRIES}. Use ${HARD_CAP_LIST_ENTRIES} or a smaller entry limit.`,
   ).optional(),
-});
+}).strict();
 
 export type ListDirInput = z.infer<typeof schema>;
 

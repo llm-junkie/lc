@@ -53,7 +53,145 @@ import {
   TOOL_ISSUE_TRUNCATION_MARKER,
 } from './model-text-budget.ts';
 
+describe('closed operational input objects', () => {
+  const inputs: Record<string, Record<string, unknown>> = {
+    lc_read_image: { paths: ['C:/work/image.png'] },
+    lc_read_pdf: { paths: ['C:/work/document.pdf'] },
+    lc_read_file: { paths: ['C:/work/file.txt'] },
+    lc_write_file: { files: [{ path: 'C:/work/file.txt', content: '' }] },
+    lc_list_dir: { paths: ['C:/work'] },
+    lc_web_fetch: { url: 'https://example.com' },
+    lc_get_current_time: {},
+    lc_run_shell: { cmd: 'echo' },
+    lc_todo_write: { todos: [{ id: 1, title: 'Inspect', status: 'completed' }] },
+    lc_ask_user: { questions: [{ id: 1, question: 'Choose a format.', choices: [{ title: 'Text' }, { title: 'JSON' }] }] },
+    lc_whiteboard: { action: 'read' },
+    lc_grep: { searches: [{ path: 'C:/work', pattern: 'needle' }] },
+    lc_edit_file: { path: 'C:/work/file.txt', old_string: 'old', new_string: '' },
+    lc_web_search: { query: 'fixture' },
+    lc_web_research: { query: 'fixture' },
+    lc_stat: { paths: ['C:/work/file.txt'] },
+    lc_glob_files: { root: 'C:/work', pattern: '**/*.txt' },
+    lc_apply_patch: { patch: '*** Begin Patch\n*** End Patch' },
+    lc_tool_help: { tool: 'lc_read_file' },
+    lc_tool_history: {},
+    lc_skill: {},
+  };
+  const validate = (name: string, args: Record<string, unknown>) => validateToolCalls([{
+    id: 'closed-input', created_at: 0, name, arguments: JSON.stringify(args),
+  }], HANDLERS_BY_NAME)[0];
+
+  it('rejects undeclared fields for every published closed tool object', () => {
+    assert.deepEqual(Object.keys(inputs), BUILTIN_TOOLS.map((tool) => tool.name));
+    const silentlyAccepted: string[] = [];
+    for (const tool of BUILTIN_TOOLS) {
+      const input = inputs[tool.name];
+      assert.equal(tool.toJsonSchema().additionalProperties, false);
+      assert.equal(validate(tool.name, input).error, undefined, tool.name);
+      const rejected = validate(tool.name, { ...input, unexpected_constraint: true });
+      if (!rejected.error) silentlyAccepted.push(tool.name);
+      else {
+        assert.equal(rejected.error[0].code, 'invalid_arguments');
+        assert.match(rejected.error[0].message, /unexpected_constraint/);
+      }
+      assert.deepEqual(validate(tool.name, input).parsed, tool.input.parse(input));
+    }
+    assert.deepEqual(silentlyAccepted, []);
+  });
+
+  it('rejects a misspelled read limit and a nested search filter', () => {
+    const read = validate('lc_read_file', { paths: ['C:/work/file.txt'], end_lien: 1 });
+    assert.equal(read.error?.[0].code, 'invalid_arguments');
+    assert.match(read.error![0].message, /end_lien/);
+    const search = validate('lc_grep', {
+      searches: [{ path: 'C:/work', pattern: 'needle', incldue: '*.ts' }],
+    });
+    assert.equal(search.error?.[0].code, 'invalid_arguments');
+    assert.match(search.error![0].message, /searches\.0.*incldue/);
+    assert.equal(validate('lc_read_file', { paths: ['C:/work/file.txt'], end_line: 1 }).error, undefined);
+    assert.equal(validate('lc_grep', { searches: [{ path: 'C:/work', pattern: 'needle', include: '*.ts' }] }).error, undefined);
+  });
+});
+
 describe('bounded utility inputs', () => {
+  it('uses the documented shell timeout default while preserving explicit limits', async () => {
+    const seen: number[] = [];
+    const context = {
+      signal: new AbortController().signal,
+      identity: { operationId: 'shell-timeout', groupId: 'shell-group' },
+      config: { maxShellTimeoutMs: 120_000, allowedRoots: ['C:/work'], shellAllowlist: ['echo'] },
+      sandbox: {
+        runShell: async (request: { timeout_ms: number }) => {
+          seen.push(request.timeout_ms);
+          return { stdout: 'fixture', stderr: '', exit_code: 0, duration_ms: 0, timed_out: false, stdout_truncated: false, stderr_truncated: false };
+        },
+        abortToolCalls: async () => {},
+      },
+    } as unknown as ToolHandlerContext;
+    for (const filler of [undefined, null, '', ' \t\n']) {
+      const call = validateToolCalls([{
+        id: 'shell-default', created_at: 0, name: 'lc_run_shell',
+        arguments: JSON.stringify({ cmd: 'echo', timeout_ms: filler }),
+      }], HANDLERS_BY_NAME)[0];
+      assert.equal(call.error, undefined);
+      await runShell.run(call.parsed as Parameters<typeof runShell.run>[0], context);
+      assert.equal(seen.at(-1), 30_000);
+    }
+    context.config.deadlineMs = Date.now() + 300_000;
+    await runShell.run({ cmd: 'echo' }, context);
+    assert.equal(seen.at(-1), 30_000);
+    context.config.deadlineMs = Date.now() + 5_000;
+    await runShell.run({ cmd: 'echo' }, context);
+    assert.ok(seen.at(-1)! > 0 && seen.at(-1)! <= 5_000);
+    delete context.config.deadlineMs;
+    await runShell.run({ cmd: 'echo', timeout_ms: 120_000 }, context);
+    assert.equal(seen.at(-1), 120_000);
+    await runShell.run({ cmd: 'echo', timeout_ms: 500 }, context);
+    assert.equal(seen.at(-1), 500);
+    context.config.maxShellTimeoutMs = 1_000;
+    await runShell.run({ cmd: 'echo' }, context);
+    assert.equal(seen.at(-1), 1_000);
+  });
+
+  it('uses the documented fetch timeout default while preserving explicit limits', async () => {
+    const seen: number[] = [];
+    const context = {
+      signal: new AbortController().signal,
+      identity: { operationId: 'fetch-timeout', groupId: 'fetch-group' },
+      config: { maxWebFetchTimeoutMs: 30_000 },
+      sandbox: {
+        webFetch: async (request: { timeout_ms: number }) => {
+          seen.push(request.timeout_ms);
+          return { status: 200, final_url: 'https://example.com', content_type: 'text/plain', body: 'fixture', truncated: false };
+        },
+        abortToolCalls: async () => {},
+      },
+    } as unknown as ToolHandlerContext;
+    for (const filler of [undefined, null, '', ' \t\n']) {
+      const call = validateToolCalls([{
+        id: 'fetch-default', created_at: 0, name: 'lc_web_fetch',
+        arguments: JSON.stringify({ url: 'https://example.com', timeout_ms: filler }),
+      }], HANDLERS_BY_NAME)[0];
+      assert.equal(call.error, undefined);
+      await webFetch.run(call.parsed as Parameters<typeof webFetch.run>[0], context);
+      assert.equal(seen.at(-1), 10_000);
+    }
+    context.config.deadlineMs = Date.now() + 60_000;
+    await webFetch.run({ url: 'https://example.com' }, context);
+    assert.equal(seen.at(-1), 10_000);
+    context.config.deadlineMs = Date.now() + 5_000;
+    await webFetch.run({ url: 'https://example.com' }, context);
+    assert.ok(seen.at(-1)! > 0 && seen.at(-1)! <= 5_000);
+    delete context.config.deadlineMs;
+    await webFetch.run({ url: 'https://example.com', timeout_ms: 30_000 }, context);
+    assert.equal(seen.at(-1), 30_000);
+    await webFetch.run({ url: 'https://example.com', timeout_ms: 500 }, context);
+    assert.equal(seen.at(-1), 500);
+    context.config.maxWebFetchTimeoutMs = 1_000;
+    await webFetch.run({ url: 'https://example.com' }, context);
+    assert.equal(seen.at(-1), 1_000);
+  });
+
   it('rejects over-limit timezone and skill IDs through production validation', () => {
     const cases = [
       {

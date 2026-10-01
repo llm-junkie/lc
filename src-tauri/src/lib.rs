@@ -683,6 +683,36 @@ mod commands {
             .map_err(|e| format!("Could not open application data directory: {e}"))
     }
 
+    /// Read only the fixed third-party inventory shipped with this LC build.
+    /// Development builds need not generate the production legal artifacts.
+    #[tauri::command]
+    pub fn read_third_party_licenses<R: Runtime>(
+        app: AppHandle<R>,
+    ) -> Result<Option<String>, String> {
+        let resource_dir = app
+            .path()
+            .resource_dir()
+            .map_err(|e| format!("Could not resolve resource directory: {e}"))?;
+        #[allow(unused_mut)]
+        let mut candidates = vec![
+            resource_dir.join("resources/THIRD_PARTY_LICENSES.md"),
+            resource_dir.join("THIRD_PARTY_LICENSES.md"),
+        ];
+        #[cfg(debug_assertions)]
+        candidates.push(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("resources/THIRD_PARTY_LICENSES.md"),
+        );
+        for path in candidates {
+            match fs::read_to_string(path) {
+                Ok(text) => return Ok(Some(text)),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(format!("Could not read third-party licenses: {error}")),
+            }
+        }
+        Ok(None)
+    }
+
     /// Open a local file path in the system's default web browser.
     /// For the Spine Theme Builder, the packaged Tauri resource is tried
     /// first. If a standalone EXE was copied without its `resources/`
@@ -1805,6 +1835,7 @@ pub fn run<R: Runtime>() {
             commands::detect_system_theme,
             commands::reset_window_state,
             commands::open_app_data_directory,
+            commands::read_third_party_licenses,
             commands::get_home_dir,
             commands::reveal_in_explorer,
             commands::open_in_browser,

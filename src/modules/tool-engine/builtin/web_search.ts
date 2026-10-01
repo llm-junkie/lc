@@ -45,7 +45,7 @@ const schema = z.object({
     .optional(),
   /** Request up to 5 additional alternative excerpts per result. */
   extra_snippets: z.boolean().optional(),
-});
+}).strict();
 
 export type WebSearchInput = z.infer<typeof schema>;
 

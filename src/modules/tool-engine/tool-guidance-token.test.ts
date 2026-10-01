@@ -164,7 +164,7 @@ describe('tool guidance token fixtures', () => {
     }
     assert.deepEqual(advancedMaximums, {
       lc_grep: 351,
-      lc_read_file: 209,
+      lc_read_file: 230,
       lc_read_pdf: 306,
       lc_whiteboard: 158,
     });

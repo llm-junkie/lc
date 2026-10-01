@@ -42,6 +42,7 @@ User sends message
   │       │
   │       ├─ decodeSSE (incremental line parser)
   │       │   ├─ scan each decoded character once across chunk boundaries
+  │       │   │   (one combined CR/LF search, including newline-heavy batches)
   │       │   └─ reject one event above 4,194,304 decoded characters
   │       │      Current adapters end that read as timed out or disconnected.
   │       │
