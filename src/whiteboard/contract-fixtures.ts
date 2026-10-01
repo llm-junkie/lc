@@ -136,7 +136,9 @@ export const WHITEBOARD_ISSUE_FIXTURES = Object.freeze({
 });
 
 export const WHITEBOARD_VERSION_ID_FIXTURES = Object.freeze({
-  controlledNow: 1_787_401_790_012,
+  // IDs encode local calendar fields. Build their clock in the runner's zone
+  // instead of pairing a fixed UTC epoch with Brussels-only expected IDs.
+  controlledNow: new Date(2026, 7, 22, 14, 29, 50, 12).getTime(),
   user: 'u_0822142950012',
   model: 'm_0822142950012',
   shape: /^[um]_\d{13}$/,
@@ -164,7 +166,7 @@ export const WHITEBOARD_STORAGE_FIXTURES = Object.freeze({
     id: 'u_0822142950012',
     owner: 'user',
     content: '',
-    createdAt: 1_787_401_790_012,
+    createdAt: WHITEBOARD_VERSION_ID_FIXTURES.controlledNow,
     sequence: 1,
     sourceMessageId: null,
     sourceToolCallId: null,
@@ -174,7 +176,7 @@ export const WHITEBOARD_STORAGE_FIXTURES = Object.freeze({
     id: 'm_0822142950012',
     owner: 'model',
     content: '',
-    createdAt: 1_787_401_790_012,
+    createdAt: WHITEBOARD_VERSION_ID_FIXTURES.controlledNow,
     sequence: 2,
     sourceMessageId: null,
     sourceToolCallId: null,
@@ -198,7 +200,7 @@ export const WHITEBOARD_STORAGE_FIXTURES = Object.freeze({
     id: 'u_0822143020000',
     owner: 'user',
     content: '# Retained user copy',
-    createdAt: 1_787_401_820_000,
+    createdAt: new Date(2026, 7, 22, 14, 30, 20).getTime(),
     sequence: 3,
     sourceMessageId: 'user-1',
     sourceToolCallId: null,
@@ -208,7 +210,7 @@ export const WHITEBOARD_STORAGE_FIXTURES = Object.freeze({
     id: 'm_0822143119048',
     owner: 'model',
     content: '# Retained model copy',
-    createdAt: 1_787_401_879_048,
+    createdAt: new Date(2026, 7, 22, 14, 31, 19, 48).getTime(),
     sequence: 4,
     sourceMessageId: 'assistant-1',
     sourceToolCallId: 'whiteboard-call-2',
