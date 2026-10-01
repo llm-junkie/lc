@@ -315,6 +315,10 @@ mod tests {
     #[tokio::test]
     async fn traversal_error_cannot_claim_a_complete_listing() {
         let root = tempdir();
+        // Diagnostics and matches use the resolved search root, even
+        // when TEMP was supplied using a Windows short-name alias.
+        let canonical_root =
+            resolve_under_roots(root.to_str().unwrap(), std::slice::from_ref(&root)).unwrap();
         let denied = root.join("locked");
         std::fs::create_dir(&denied).unwrap();
         std::fs::write(denied.join("hidden.txt"), "content").unwrap();
@@ -363,7 +367,7 @@ mod tests {
         let error = result.expect_err("a traversal error must not claim completeness");
         assert!(matches!(error, ToolError::Io(_)));
         let message = error.to_string();
-        assert!(message.contains(&denied.to_string_lossy().to_string()));
+        assert!(message.contains(&canonical_root.join("locked").to_string_lossy().to_string()));
         assert!(message
             .contains("Check that this path exists and is readable, or choose another root."));
         let recovered = recovered.unwrap();
@@ -371,7 +375,11 @@ mod tests {
         assert_eq!(recovered["matches"].as_array().unwrap().len(), 1);
         assert_eq!(
             recovered["matches"][0]["path"],
-            denied.join("hidden.txt").to_string_lossy().to_string()
+            canonical_root
+                .join("locked")
+                .join("hidden.txt")
+                .to_string_lossy()
+                .to_string()
         );
     }
 

@@ -4979,11 +4979,14 @@ mod tests {
     #[test]
     fn windows_device_unicode_trailing_dot_and_ads_stay_scoped() {
         let root = tempdir();
+        // TEMP may contain a short-name alias such as RUNNER~1. The
+        // resolver returns the canonical long path, including for ADS.
+        let canonical_root = strip_unc(&std::fs::canonicalize(&root).unwrap());
         let unicode = root.join("naïve-文件.txt");
         std::fs::write(&unicode, "inside").unwrap();
         assert_eq!(
             resolve_ok(unicode.to_str().unwrap(), std::slice::from_ref(&root)),
-            unicode
+            canonical_root.join("naïve-文件.txt")
         );
 
         let ordinary = root.join("ordinary.txt");
@@ -4998,7 +5001,7 @@ mod tests {
         let ads = root.join("ordinary.txt:lc-a11");
         std::fs::write(&ads, "stream").unwrap();
         let ads_resolved = resolve_ok(ads.to_str().unwrap(), std::slice::from_ref(&root));
-        assert!(ads_resolved.starts_with(&root));
+        assert!(ads_resolved.starts_with(&canonical_root));
 
         let outside = std::env::temp_dir().join(format!(
             "lc-fs-device-out-{}-{:016x}.txt",

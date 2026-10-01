@@ -99,13 +99,14 @@ fn windows_build_number() -> Option<u32> {
 ///
 /// `requested` mirrors the persisted material mode
 /// (`auto | glass | solid`); `dark` is the resolved theme base so the
-/// native tint can follow the app theme. Returns the activation
+/// Windows Mica tint can follow the app theme. Other platforms do not
+/// consume this hint. Returns the activation
 /// result; every failure path resolves to matte, never to an
 /// unpainted transparent surface.
 pub fn activate_material<R: Runtime>(
     app: &AppHandle<R>,
     requested: &str,
-    dark: bool,
+    _dark: bool,
 ) -> MaterialActivation {
     let matte = |reason: &str| MaterialActivation {
         backend: "matte",
@@ -125,7 +126,7 @@ pub fn activate_material<R: Runtime>(
     {
         let backend = resolve_windows_backend(windows_build_number().unwrap_or(0));
         let result = if backend == "mica" {
-            window_vibrancy::apply_mica(&window, Some(dark))
+            window_vibrancy::apply_mica(&window, Some(_dark))
         } else {
             window_vibrancy::apply_acrylic(&window, None)
         };
@@ -159,7 +160,7 @@ pub fn activate_material<R: Runtime>(
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        let _ = (&window, dark);
+        let _ = &window;
         matte("linux-matte")
     }
 }
