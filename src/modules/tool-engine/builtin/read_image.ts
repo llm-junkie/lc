@@ -1,3 +1,4 @@
+import { READ_IMAGE_GUIDANCE } from '../tool-guidance.ts';
 /**
  * read_image — inspect one or more images from disk.
  *
@@ -303,44 +304,7 @@ let nextBatchId = 0;
 
 export const readImage: ToolHandler<ReadImageInput, ReadImageOutput> = {
   name: 'lc_read_image',
-  description:
-    'Read images from disk in ordinary delivery mode or analysis mode.\n' +
-    'A call accepts at most 20 paths.\n' +
-    'LC rejects a larger request.\n' +
-    'In ordinary delivery mode, a vision-capable chat model receives cached images.\n' +
-    'The cache expires after five minutes.\n' +
-    'The cache holds at most eight batches and 64 MiB of data URLs.\n' +
-    'If a batch expires or is evicted, the next model turn receives a warning.\n' +
-    'Retry with fewer paths, a smaller downscale value, or a JPEG encoding.\n' +
-    'If analyze=true, a configured vision sub-agent returns a text description.\n' +
-    'Each provider response body has a 1 MiB cap.\n' +
-    'Non-success response detail has a smaller 16 KiB cap.\n' +
-    'Each usable description has a 64 KiB UTF-8 cap.\n' +
-    'An oversized or blank description becomes a per-image error.\n' +
-    'analyzed_count reports images encoded and admitted to a vision request. described_count reports usable descriptions returned.\n' +
-    'Analysis mode uses medium_jpeg by default.\n' +
-    'Each encoded image has a 5 MiB cap in analysis mode.\n' +
-    'Analysis mode processes only the first 10 paths.\n' +
-    'If it drops more paths, the result includes counts, truncated=true, and an actionable warning.\n' +
-    'Use instruction to guide the analysis.\n' +
-    'Analysis is time-limited and can time out.\n' +
-    'The input limit defaults to 10 MiB per image.\n' +
-    'max_bytes can increase this limit to the 50 MiB hard limit.\n' +
-    'LC rejects a decoded image above 100 megapixels.\n' +
-    'LC also rejects a dimension above 16,384 pixels.\n' +
-    'LC performs these checks before downscaling.\n' +
-    'LC does not enforce a minimum image dimension.\n' +
-    'Some vision providers refuse images below provider-specific minimum dimensions.\n' +
-    'A provider can reject such an image during delivery or analysis.\n' +
-    'lc_read_image cannot increase image dimensions.\n' +
-    'Enlarge the source image before you retry.\n' +
-    'Encoding options are low_jpeg at q30, medium_jpeg at q60, and original raw bytes.\n' +
-    'A downscale value from 0.1 through 1.0 reduces dimensions before encoding.\n' +
-    'Supported formats are png, jpeg, gif, webp, and bmp.\n' +
-    'LC detects the format from file contents, not from the file name.\n' +
-    'Therefore, mime reports the decoded format.\n' +
-    'SVG is vector markup. Read it as text with lc_read_file.\n' +
-    'This build does not support TIFF or ICO.',
+  description: READ_IMAGE_GUIDANCE.essential,
   uiDescription: 'Inspect images or analyze them with a vision sub-agent.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

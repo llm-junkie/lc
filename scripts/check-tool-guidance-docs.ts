@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PILOT_GUIDANCE_CATALOGS, type ToolGuidanceCatalog } from '../src/modules/tool-engine/tool-guidance.ts';
+import { TOOL_GUIDANCE_CATALOGS, type ToolGuidanceCatalog } from '../src/modules/tool-engine/tool-guidance.ts';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,7 +28,7 @@ function cell(value: string): string {
 }
 
 function catalogs(): ToolGuidanceCatalog[] {
-  return [...PILOT_GUIDANCE_CATALOGS.values()]
+  return [...TOOL_GUIDANCE_CATALOGS.values()]
     .sort((left, right) => left.tool.localeCompare(right.tool));
 }
 
@@ -123,7 +123,10 @@ for (const block of BLOCKS) {
   const document = fs.readFileSync(absolute, 'utf8').replace(/\r\n/g, '\n');
   const current = currentBlock(document, block);
   if (current === undefined) failures.push(`${block.file}: missing ${block.id} block`);
-  else if (current !== expectedBlock(block)) failures.push(`${block.file}: ${block.id} block is out of sync`);
+  else if (current !== expectedBlock(block)) {
+    if (process.argv.includes('--write')) fs.writeFileSync(absolute, document.replace(current, expectedBlock(block)));
+    else failures.push(`${block.file}: ${block.id} block is out of sync`);
+  }
 }
 
 if (failures.length > 0) {

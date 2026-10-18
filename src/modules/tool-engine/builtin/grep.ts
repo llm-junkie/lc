@@ -180,6 +180,12 @@ export const grep: ToolHandler<GrepInput, GrepRunResult> = {
         counts: search.counts ?? [],
       }));
     const warnings: string[] = [];
+    // Keep populated compact results from being mistaken for an empty content result.
+    if ((input.output_mode === 'files_with_matches' && results.some((search) => search.files.length > 0))
+      || (input.output_mode === 'count' && results.some((search) => search.counts.length > 0))) {
+      const warning = guidanceSignal('lc_grep', input.output_mode);
+      if (warning) warnings.push(warning);
+    }
     if (results.some((search) => search.truncated === true)) {
       const warning = guidanceSignal('lc_grep', 'truncated');
       if (warning) warnings.push(warning);

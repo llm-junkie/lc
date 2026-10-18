@@ -1,12 +1,7 @@
+import { GLOB_FILES_GUIDANCE } from '../tool-guidance.ts';
 import { z } from 'zod';
 import type { ToolHandler } from '../types';
-import {
-  COMMON_GLOB_DIALECT,
-  FIXED_SEARCH_EXCLUDED_DIRS,
-  GREP_COMPLETENESS_CONTRACT,
-} from './tool-contract-metadata.ts';
 
-const EXCLUDED_DIRS_COPY = FIXED_SEARCH_EXCLUDED_DIRS.map((name) => `\`${name}\``).join(', ');
 
 const schema = z.object({
   pattern: z.string().min(1).describe(
@@ -38,34 +33,7 @@ export interface GlobFilesOutput {
 
 export const globFiles: ToolHandler<Input, GlobFilesOutput> = {
   name: 'lc_glob_files',
-  description:
-    'Find files and directories recursively with a glob pattern.\n' +
-    'The search starts under one root directory.\n' +
-    'The root must resolve before LC starts the call.\n' +
-    'If the root does not exist, LC rejects the whole call.\n' +
-    'The path_resolution_failed error names the root.\n' +
-    'In comparison, lc_read_file reports a missing path for one entry.\n' +
-    'If the root is uncertain, call lc_stat first.\n' +
-    `${COMMON_GLOB_DIALECT}\n` +
-    'Matching uses root-relative paths normalized to "/".\n' +
-    'Traversal always prunes fixed directory basenames.\n' +
-    `Excluded directory basenames: ${EXCLUDED_DIRS_COPY}\n` +
-    'Therefore, zero matches does not prove that an excluded path is absent.\n' +
-    'Each match includes is_dir to distinguish directories from files.\n' +
-    'If include_hidden=false, LC suppresses a matching dot-prefixed basename.\n' +
-    'Traversal still enters hidden directories.\n' +
-    'Therefore, ordinary descendants such as .github/workflows/build.yml can match.\n' +
-    'truncated means that traversal stopped because of a limit or cancellation.\n' +
-    'Possible limits are result count, visited entries, and deadline.\n' +
-    'For the result limit, LC sets truncated only after it finds one more match.\n' +
-    'Therefore, truncated=false means that the listing is complete.\n' +
-    'A traversal error fails the call and names the affected path.\n' +
-    'Check that this path exists and is readable, or choose another root.\n' +
-    `${GREP_COMPLETENESS_CONTRACT}\n` +
-    'Cancellation returns a normal result.\n' +
-    'That result preserves matches collected before cancellation.\n' +
-    'Use lc_glob_files to locate files by name pattern.\n' +
-    'This avoids manual directory enumeration with lc_list_dir and lc_grep.',
+  description: GLOB_FILES_GUIDANCE.essential,
   uiDescription: 'Find files matching a glob pattern recursively.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

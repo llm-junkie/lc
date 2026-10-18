@@ -7,7 +7,8 @@ import { BUILTIN_TOOLS, materialize } from './registry.ts';
 import { buildToolHelpEnvelope } from './tool-help.ts';
 import { getBuiltinSkill } from '../builtin-skills.ts';
 import { materializeSkillForExposure } from '../lc-tools-skill.ts';
-import { PILOT_GUIDANCE_CATALOGS } from './tool-guidance.ts';
+import { TOOL_GUIDANCE_CATALOGS } from './tool-guidance.ts';
+import { useSettings } from '../../store/settings.ts';
 
 // Fixed fixtures are bounded and trusted. Encode each complete fixture without runtime sampling.
 const countFixtureTokens = (text: string): number => encode(text).length;
@@ -40,6 +41,17 @@ const WHITEBOARD = Object.freeze({
   completeFixedSurface: 7_506,
 });
 
+// Final rollout: retain essential safety even when it increases the prompt.
+const ROLLOUT = Object.freeze({
+  toolPayload: 5_114,
+  schemaPayload: 2_660,
+  schemaPayloadWithoutDescriptions: 2_220,
+  systemPromptOneRoot: 580,
+  systemPromptTwoRoots: 584,
+  systemPromptLinux: 518,
+  completeFixedSurface: 5_698,
+});
+
 const tools = {
   enabled: true,
   file_io_enabled: true,
@@ -70,6 +82,28 @@ function removeDescriptions(value: unknown): unknown {
 }
 
 describe('tool guidance token fixtures', () => {
+  test('measures every active search-provider payload without omitting its caveats', () => {
+    const original = useSettings.getState().tools;
+    const prompt = buildPromptText({ tools, params: { system_prompt: '' } }, 'C:/Users/name', 'Windows');
+    try {
+      for (const [provider, settings, toolTokens, completeTokens] of [
+        ['brave', { brave_search_api_key: 'fixture' }, 5200, 5784],
+        ['searxng', { searxng_base_url: 'http://localhost:8080' }, 5210, 5794],
+        ['marginalia', { marginalia_api_key: 'public' }, 5224, 5808],
+      ] as const) {
+        useSettings.setState({ tools: Object.assign({ ...original, brave_search_api_key: '', brave_search_api_key_ref: undefined,
+          searxng_base_url: '', marginalia_api_key: '', marginalia_api_key_ref: undefined,
+          web_search_provider: provider }, settings) });
+        const serialized = JSON.stringify(materialize(BUILTIN_TOOLS));
+        assert.equal(countFixtureTokens(serialized), toolTokens, provider);
+        assert.equal(countFixtureTokens(`${prompt}\n${serialized}`), completeTokens, provider);
+        assert.ok(completeTokens <= 5900);
+      }
+    } finally {
+      useSettings.setState({ tools: original });
+    }
+  });
+
   test('keeps the recorded pre-guidance measurements', () => {
     assert.deepEqual(BASELINE, {
       toolPayload: 8_121,
@@ -92,7 +126,8 @@ describe('tool guidance token fixtures', () => {
     });
   });
 
-  test('measures the complete Whiteboard payload and dynamic prompts exactly', () => {
+  test('retains the Whiteboard baseline and measures the complete rollout exactly', () => {
+    assert.equal(WHITEBOARD.completeFixedSurface, 7_506);
     const definitions = materialize(BUILTIN_TOOLS);
     const serializedDefinitions = JSON.stringify(definitions);
     const schemas = definitions.map((definition) => definition.function.parameters);
@@ -120,13 +155,18 @@ describe('tool guidance token fixtures', () => {
       systemPromptTwoRoots: countFixtureTokens(promptTwoRoots),
       systemPromptLinux: countFixtureTokens(promptLinux),
       completeFixedSurface: countFixtureTokens(`${promptTwoRoots}\n${serializedDefinitions}`),
-    }, WHITEBOARD);
+    }, ROLLOUT);
 
-    assert.ok(WHITEBOARD.systemPromptTwoRoots <= 560);
-    for (const name of ['lc_grep', 'lc_read_file', 'lc_read_pdf', 'lc_whiteboard']) {
+    // Additional help-selection and U+FFFD safety rules justify the 600-token cap.
+    assert.ok(ROLLOUT.systemPromptTwoRoots <= 600);
+    assert.ok(ROLLOUT.completeFixedSurface < WHITEBOARD.completeFixedSurface);
+    for (const [name, catalog] of TOOL_GUIDANCE_CATALOGS) {
       const description = definitions.find((definition) => definition.function.name === name)?.function.description;
       assert.ok(description);
-      assert.ok(countFixtureTokens(description) <= 120, `${name} exceeds the pilot description target`);
+      // Grep result modes, patch syntax, and research-provider caveats have explicit exceptions.
+      const limit = ['lc_grep', 'lc_apply_patch', 'lc_web_research'].includes(name) ? 250 : 120;
+      assert.ok(countFixtureTokens(description) <= limit, `${name} exceeds its description budget`);
+      if (!['lc_web_search', 'lc_web_research'].includes(name)) assert.equal(description, catalog.essential);
     }
     const pdfDescription = definitions.find((definition) =>
       definition.function.name === 'lc_read_pdf')?.function.description ?? '';
@@ -145,7 +185,8 @@ describe('tool guidance token fixtures', () => {
     ), { lc_grep: 125, lc_read_file: 115, lc_read_pdf: 127, lc_whiteboard: 118 });
 
     const advancedMaximums: Record<string, number> = {};
-    for (const catalog of PILOT_GUIDANCE_CATALOGS.values()) {
+    for (const catalog of TOOL_GUIDANCE_CATALOGS.values()) {
+      assert.ok(countFixtureTokens(JSON.stringify(buildToolHelpEnvelope({ tool: catalog.tool }, exposed))) <= 400);
       let maximum = 0;
       const queries = [
         ...catalog.keywords,
@@ -163,16 +204,29 @@ describe('tool guidance token fixtures', () => {
       advancedMaximums[catalog.tool] = maximum;
     }
     assert.deepEqual(advancedMaximums, {
-      lc_grep: 351,
+      lc_grep: 402,
       lc_read_file: 230,
       lc_read_pdf: 306,
       lc_whiteboard: 158,
+      lc_write_file: 226,
+      lc_edit_file: 232,
+      lc_list_dir: 142,
+      lc_glob_files: 276,
+      lc_read_image: 271,
+      lc_run_shell: 218,
+      lc_stat: 78,
+      lc_get_current_time: 93,
+      lc_todo_write: 99,
+      lc_web_fetch: 163,
+      lc_apply_patch: 272,
+      lc_web_search: 191,
+      lc_web_research: 216,
     });
 
     const skill = getBuiltinSkill('lc:builtin:lc-tools');
     assert.ok(skill);
     const liveSkill = materializeSkillForExposure(skill, [...exposed]);
-    assert.equal(countFixtureTokens(liveSkill.content), 889);
+    assert.equal(countFixtureTokens(liveSkill.content), 890);
     assert.ok(countFixtureTokens(liveSkill.content) >= 600 && countFixtureTokens(liveSkill.content) <= 900);
   });
 });

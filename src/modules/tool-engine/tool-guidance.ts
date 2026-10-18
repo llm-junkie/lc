@@ -160,6 +160,8 @@ export const GREP_GUIDANCE = defineCatalog({
     'A directory path starts a recursive search. Every path must resolve before the batch starts. ' +
     'One unresolved path rejects the complete batch. The batch include glob applies to every search. ' +
     'An entry include glob replaces it. The exclude glob skips matching files. ' +
+    'Read matches in content mode, files in files_with_matches mode, and counts in count mode. ' +
+    'An empty matches array does not mean no matches in files_with_matches or count mode. ' +
     `${GREP_COMPLETENESS_CONTRACT} Use lc_glob_files to search names. ` +
     'Example: lc_grep({ searches: [{ path: "...", pattern: "..." }] })',
   basic:
@@ -186,7 +188,8 @@ export const GREP_GUIDANCE = defineCatalog({
       title: 'Output modes',
       aliases: ['content', 'files with matches', 'count'],
       guidance:
-        'The content mode returns matching lines. The files_with_matches mode returns file paths. The count mode returns one count per file. ' +
+        'The content mode fills matches. The files_with_matches mode fills files. The count mode fills counts with one count per file. ' +
+        'The other result arrays remain empty. Do not infer absence from an array that this mode does not fill. ' +
         'Use context_lines only with content. The max_matches_per_file value samples each file. A proven omitted match sets truncated=true.',
     },
     {
@@ -218,7 +221,9 @@ export const GREP_GUIDANCE = defineCatalog({
       title: 'Diagnostic counters',
       aliases: ['visited entries', 'files selected', 'bytes read', 'skipped'],
       guidance:
-        'visited_entries counts walked entries. files_selected counts files after filters. bytes_read counts file bytes read by the search. ' +
+        'The visited_entries counter counts walked entries. The files_selected counter counts candidate files after traversal filters. ' +
+        'Some candidates can remain unread when a limit stops the search. Selection does not prove that a file was searched. ' +
+        'The bytes_read counter counts file bytes read by the search. ' +
         'The skipped counters identify large, binary, symbolic-link, and unreadable files.',
     },
   ],
@@ -238,6 +243,10 @@ export const GREP_GUIDANCE = defineCatalog({
     },
   },
   signals: {
+    files_with_matches:
+      'Matching file paths are in files. The matches array is unused and empty in files_with_matches mode.',
+    count:
+      'Per-file match totals are in counts. The matches array is unused and empty in count mode.',
     replacement_character:
       'WARNING: A grep match contains U+FFFD. Do not write that match text back. Ask the user to convert the file before a write.',
     truncated:
@@ -256,7 +265,7 @@ export const READ_FILE_GUIDANCE = defineCatalog({
     'One line range applies to every path. The default output cap is 1 MiB. max_bytes can increase it to 32 MiB. ' +
     'An oversized read fails without a partial body. A successful result includes size, line count, encoding, and SHA-256. ' +
     'Use that SHA-256 for a later safe write. Use lc_read_image for images and lc_read_pdf for PDFs. ' +
-    'An encoding failure includes a direct recovery action.',
+    'Never write returned U+FFFD text back without source verification.',
   basic:
     'Use start_line and end_line to inspect a focused range. A focused range can read a large source when its selected output fits. ' +
     'The returned SHA-256 describes the source bytes. Re-read the file before a mutation when the source can have changed.',
@@ -326,7 +335,9 @@ export const READ_FILE_GUIDANCE = defineCatalog({
   },
   signals: {
     replacement_character:
-      'WARNING: Returned text contains U+FFFD. Do not write this text back automatically. Ask the user to verify or convert the source.',
+      'WARNING: Returned text contains U+FFFD and may not preserve the original text. ' +
+      'Do not call a write, edit, patch, or shell tool with this text. ' +
+      'Stop and request verified source text before any rewrite.',
   },
 });
 
@@ -550,15 +561,308 @@ export const WHITEBOARD_GUIDANCE = defineCatalog({
   signals: {},
 });
 
-export const PILOT_GUIDANCE_CATALOGS: ReadonlyMap<string, ToolGuidanceCatalog> = new Map([
+/** Shared construction keeps canonical identity and recovery ownership in one place. */
+function operationalCatalog(
+  tool: string, essential: string, basic: string, sections: readonly ToolGuidanceSection[],
+  recovery: Readonly<Record<string, ToolRecoveryGuidance>> = {},
+): ToolGuidanceCatalog {
+  const entry = TOOL_NAME_ENTRIES.find((candidate) => candidate.name === tool)!;
+  return defineCatalog({
+    tool, purpose: entry.purpose, aliases: entry.aliases, essential, basic, sections,
+    keywords: sections.map((section) => section.title.toLocaleLowerCase('en-US')),
+    declaredErrorCodes: [...SHARED_CODES],
+    recovery: {
+      invalid_arguments: { remedy: 'Correct the invalid arguments and submit a new call.', helpQuery: sections[0].aliases[0] },
+      ...recovery,
+    },
+    signals: {},
+  });
+}
+
+export const WRITE_FILE_GUIDANCE = operationalCatalog('lc_write_file',
+  'Write or append UTF-8 text. Pass at most 20 files entries with path and content. ' +
+  'One top-level mode applies to all entries. create is default and refuses existing files. ' +
+  'overwrite replaces content. append adds content. LC creates missing parent directories. ' +
+  'When overwriting a file that you read, pass its returned sha256 as expected_sha256. ' +
+  'A changed file is refused. A deleted target can still be recreated by create or overwrite. ' +
+  'Batch entries commit independently. A later failure does not roll back earlier changes. Inspect every result.',
+  'Use create for a new file. Use lc_edit_file for a targeted replacement. ' +
+  'Each files entry owns its content and optional expected_sha256. Keep mode outside the entries.',
+  [
+    { title: 'Modes and paths', aliases: ['mode', 'create', 'overwrite', 'append'], guidance:
+      'The create mode refuses existing files. The overwrite mode replaces content or creates a missing file. ' +
+      'The append mode adds content. LC creates missing parent directories without a separate directory call. ' +
+      'Use separate files entries for different content. One mode applies to the complete batch.' },
+    { title: 'Hash protection', aliases: ['expected sha256', 'concurrency', 'deleted target'], guidance:
+      'Use the sha256 from lc_read_file as expected_sha256 when overwriting a file that you read. ' +
+      'A mismatch refuses the write. Read again before you prepare a replacement. ' +
+      'If the target was deleted, create and overwrite can recreate it despite expected_sha256. append refuses that missing target.' },
+    { title: 'Partial batches', aliases: ['partial', 'results', 'rollback'], guidance:
+      'Entries commit independently. Inspect every error and bytes_written value. ' +
+      'A later failure does not undo an earlier write. Retry only the intended failed entries after checking their current state. ' +
+      'The lines_removed value can be null when the prior file was not measured within the scan budget.' },
+  ]);
+
+export const EDIT_FILE_GUIDANCE = operationalCatalog('lc_edit_file',
+  'Replace exact text in files. Use path, old_string, and new_string for one file, or files entries for a batch. ' +
+  'Do not combine these forms. A batch accepts from 1 through 20 files. ' +
+  'old_string must appear exactly once. Copy indentation exactly. Matching ignores line-ending differences. ' +
+  'Batch entries commit independently. A later failure does not roll back earlier changes. ' +
+  'Inspect replaced, occurrences, hint, and error for each entry. Use lc_write_file to create files.',
+  'Use an exact substring from a recent read. Include from 3 through 5 context lines when needed for uniqueness. ' +
+  'new_string can be empty to delete the match. Each edit uses a temporary file and rename.',
+  [
+    { title: 'Input forms', aliases: ['syntax', 'flat', 'batch'], guidance:
+      'The flat form requires path, old_string, and new_string. ' +
+      'The batch form requires files entries with those same fields. Do not mix the forms. ' +
+      'Example: lc_edit_file({ files: [{ path: "C:/work/app.ts", old_string: "old", new_string: "new" }] })' },
+    { title: 'Match diagnostics', aliases: ['occurrences', 'match lines', 'near match lines'], guidance:
+      'If occurrences is 0, inspect hint and near_match_lines for whitespace differences. ' +
+      'If occurrences exceeds 1, match_lines identifies at most 20 matching locations. ' +
+      'Overlapping occurrences also make a match ambiguous. Add exact context before retrying. ' +
+      'A missing, binary, or oversized file reports error instead of match diagnostics.' },
+    { title: 'Missing files', aliases: ['create if missing', 'new file'], guidance:
+      'The top-level create_if_missing flag applies to every entry. Its default is false. ' +
+      'If true and a target is missing, LC creates it with new_string as its complete content. LC ignores old_string in that case.' },
+  ]);
+
+export const APPLY_PATCH_GUIDANCE = operationalCatalog('lc_apply_patch',
+  'Apply coordinated Add, Update, Move, or Delete changes. Use lc_edit_file for one simple replacement. ' +
+  'Read existing targets first. Limits are 1 MiB per patch, 32 MiB per target, and 64 MiB per prepared plan. ' +
+  'Paths are filesystem paths, not JSON literals. Use one bare @@ per update hunk. ' +
+  'Prefix context lines with a space, removed lines with -, and added lines with +. ' +
+  'Keep replacement lines in the same hunk. A blank context line still needs its leading space.\n' +
+  '*** Begin Patch\n*** Update File: C:/work/app.txt\n@@\n-old\n+new\n*** End Patch\n' +
+  'Add and Move never overwrite destinations. Call help for their syntax. ' +
+  'Inspect fully_applied and every files entry. A late failure can leave earlier files changed. ' +
+  'Read affected files again before retrying.',
+  'Prepare one patch with Begin Patch and End Patch markers. Use exact lines copied from each file. ' +
+  'Deterministic preparation failures occur before writes. Later write failures or cancellation can preserve an applied prefix. ' +
+  'This tool has no dry_run option.',
+  [
+    { title: 'Patch syntax', aliases: ['syntax', 'add', 'move', 'delete'], guidance:
+      'Add File content follows its header directly. Prefix every added line with +. Add File does not use @@. ' +
+      'Move to must immediately follow Update File. It is not a standalone header. ' +
+      'Delete File has no content body. Add and Move refuse existing destinations.\n' +
+      '*** Begin Patch\n*** Add File: C:/work/new.txt\n+new content\n' +
+      '*** Update File: C:/work/old.txt\n*** Move to: C:/work/renamed.txt\n' +
+      '*** Delete File: C:/work/remove.txt\n*** End Patch' },
+    { title: 'Hunk matching', aliases: ['context', 'whitespace', 'fallback'], guidance:
+      'Use exact file lines when possible. Keep the old and new lines for one replacement in the same @@ hunk. ' +
+      'A fallback match can succeed with a warning. Inspect each warning before treating the patch as exact.' },
+    { title: 'Preparation and partial writes', aliases: ['preflight', 'fully applied', 'retry', 'dry run'], guidance:
+      'LC validates the authorized plan and prepares deterministic changes before writing. ' +
+      'A preparation failure writes nothing. A later write failure or cancellation can leave earlier entries committed. ' +
+      'Inspect fully_applied and every files entry. Read affected files again before preparing a retry. ' +
+      'There is no dry_run parameter or rollback guarantee.' },
+  ]);
+
+export const LIST_DIR_GUIDANCE = operationalCatalog('lc_list_dir',
+  'List immediate entries of up to 20 directories. This tool does not search recursively. ' +
+  'Use pattern to filter entry names with a glob. Every directory must resolve before the batch starts. ' +
+  'One unresolved directory rejects the whole call. Use lc_stat for uncertain paths. ' +
+  'max_entries defaults to 1000 with a hard limit of 5000 per directory. Inspect each truncated flag. ' +
+  'Use lc_glob_files for recursive name searches.',
+  'Put directory paths in paths. include_hidden=false omits only dot-prefixed entries. ' +
+  'There is no fixed directory skip list. Names such as node_modules, dist, and vendor remain listable.',
+  [
+    { title: 'Name filters', aliases: ['pattern', 'glob', 'hidden'], guidance:
+      `${COMMON_GLOB_DIALECT} The pattern matches one entry name. ` +
+      'This call does not traverse child directories. include_hidden controls dot-prefixed names only.' },
+    { title: 'Batch preflight', aliases: ['paths', 'missing directory', 'preflight'], guidance:
+      'Every directory must resolve before execution. path_resolution_failed names an unresolved directory. ' +
+      'Correct or remove that path before retrying the complete batch. lc_read_file instead reports missing files per entry.' },
+  ], { path_resolution_failed: { remedy: 'Correct or remove the unresolved directory, then submit the complete batch again.', helpQuery: 'preflight' } });
+
+export const GLOB_FILES_GUIDANCE = operationalCatalog('lc_glob_files',
+  'Find files and directories recursively by glob under one root. Use lc_grep to search contents. ' +
+  'The root must resolve before execution. Fixed excluded directories are pruned. ' +
+  'Zero matches does not prove that an excluded path is absent. Each match includes is_dir. ' +
+  'max_results defaults to 1000 and cannot exceed 5000. ' +
+  'truncated marks a limit or cancellation and preserves collected matches. ' +
+  'A traversal error fails the call and names the affected path. Check its existence and readability.',
+  'Match root-relative paths with forward slashes. Use ** for recursive segments. ' +
+  'include_hidden=false suppresses matching dot-prefixed basenames but still traverses hidden directories. ' +
+  'An ordinary descendant such as .github/workflows/build.yml can match.',
+  [
+    { title: 'Patterns and hidden names', aliases: ['pattern', 'glob', 'hidden'], guidance:
+      `${COMMON_GLOB_DIALECT} Matching uses root-relative paths normalized to "/". ` +
+      'include_hidden filters only the matching basename. It does not prevent traversal into hidden directories.' },
+    { title: 'Excluded directories', aliases: ['excluded', 'skip list', 'zero matches'], guidance:
+      `Excluded directory basenames: ${EXCLUDED_DIRS_GUIDANCE}.\n` +
+      'Traversal always prunes these directories. Use lc_list_dir or a known direct path to inspect an excluded directory.' },
+    { title: 'Completeness', aliases: ['truncated', 'cancelled', 'limits'], guidance:
+      'Limits include result count, visited entries, and deadline. The result limit sets truncated only after one more match is found. ' +
+      'Cancellation returns a normal result and preserves matches collected before cancellation. ' +
+      'truncated=false proves completeness within the traversal exclusions. ' +
+      GREP_COMPLETENESS_CONTRACT },
+  ], { path_resolution_failed: { remedy: 'Choose an existing root directory before retrying.', helpQuery: 'patterns' } });
+
+export const READ_IMAGE_GUIDANCE = operationalCatalog('lc_read_image',
+  'Read raster images. Pass at most 20 paths. Ordinary delivery requires a vision-capable chat model. ' +
+  'analyze=true uses a configured vision sub-agent and returns text. It processes only the first 10 paths. ' +
+  'Dropped paths produce truncated=true, counts, and an actionable warning. Use instruction to guide analysis. ' +
+  'The input cap defaults to 10 MiB per image. max_bytes can raise it to 50 MiB. ' +
+  'Inspect each error and warning. Read SVG as text with lc_read_file.',
+  'Ordinary delivery sends cached images to the chat model. Analysis returns descriptions and per-image errors. ' +
+  'analyzed_count counts images admitted to a vision request. described_count counts usable descriptions. ' +
+  'Split analysis requests above 10 paths.',
+  [
+    { title: 'Modes and encoding', aliases: ['analyze', 'encoding', 'downscale'], guidance:
+      'Analysis defaults to medium_jpeg and limits each encoded image to 5 MiB. ' +
+      'The low_jpeg mode uses quality 30. The medium_jpeg mode uses quality 60. The original mode preserves raw bytes. ' +
+      'Set downscale from 0.1 through 1.0 to reduce dimensions before encoding. ' +
+      'Use fewer paths, a smaller downscale value, or JPEG encoding when delivery exceeds a limit.' },
+    { title: 'Formats and dimensions', aliases: ['format', 'svg', 'pixels', 'minimum size'], guidance:
+      'Supported formats are png, jpeg, gif, webp, and bmp. The decoded content determines mime, not the filename. ' +
+      'TIFF and ICO are unsupported. SVG uses lc_read_file. ' +
+      'Before downscaling, LC rejects images above 100 megapixels or a dimension above 16,384 pixels. ' +
+      'LC has no minimum dimension. A vision provider can reject small images. LC cannot enlarge them.' },
+    { title: 'Cache delivery', aliases: ['cache', 'expired', 'evicted'], guidance:
+      'The delivery cache expires after five minutes. It holds at most eight batches and 64 MiB of data URLs. ' +
+      'An expired or evicted batch produces a warning on the next model turn. Retry with fewer or smaller images.' },
+    { title: 'Analysis limits', aliases: ['description', 'timeout', 'response size'], guidance:
+      'Analysis is time-limited and can time out. Provider response bodies have a 1 MiB cap. ' +
+      'Non-success response details have a 16 KiB cap. Usable descriptions have a 64 KiB UTF-8 cap. ' +
+      'A blank or oversized description becomes a per-image error.' },
+  ]);
+
+export const RUN_SHELL_GUIDANCE = operationalCatalog('lc_run_shell',
+  'Run one approval-controlled executable allowed by the system prompt. Put its name in cmd and its arguments in args. ' +
+  'LC invokes it directly. On Windows, use cmd with args for cmd.exe builtins. ' +
+  'An explicit cwd must exist inside an allowed root. ' +
+  'stdin, stdout, and stderr each have a 1 MiB cap. Inspect both output truncation flags. ' +
+  'The timeout defaults to 30 seconds and cannot exceed 120 seconds. ' +
+  'A timeout sets timed_out=true and exit_code=null.',
+  'Use the executable-plus-args form. A compatible full command string in cmd is also accepted. ' +
+  'The allowlist comes from the system prompt. Do not assume another executable is available.',
+  [
+    { title: 'Arguments and Windows', aliases: ['cmd', 'args', 'windows'], guidance:
+      'Put one executable in cmd and each argument in args. On Windows, explicit cmd /c calls are normalized before approval. ' +
+      'LC disables AutoRun, requests Unicode builtin output, and preserves the /c command tail.' },
+    { title: 'Working directory and environment', aliases: ['cwd', 'env', 'variables'], guidance:
+      'An explicit cwd must already be a directory inside an allowed root. An omitted cwd uses the first allowed root. ' +
+      'With no roots, LC uses the system temporary directory. ' +
+      'LC copies a small safe set of parent variables and clears dangerous loader and runtime variables. ' +
+      'Overrides cannot restore those variables or use secret-shaped names.' },
+    { title: 'Input and output limits', aliases: ['stdin', 'stdout', 'stderr', 'timeout'], guidance:
+      'stdin preserves empty and whitespace-only input exactly. LC enforces its 1 MiB UTF-8 limit natively. ' +
+      'stdout and stderr each have separate truncation flags. Check exit_code and timed_out before treating a command as successful.' },
+  ]);
+
+export const STAT_GUIDANCE = operationalCatalog('lc_stat',
+  'Get file or directory metadata without reading content. Pass at most 100 absolute paths. ' +
+  'Each result reports existence, type, and applicable size and modification time. ' +
+  'Inspect error before interpreting exists=false. Unavailable or inapplicable metadata is null. ' +
+  'Use this instead of lc_read_file when only metadata is needed.',
+  'Check existence before a directory-wide call when its path is uncertain. Metadata does not prove file contents or encoding.',
+  [{ title: 'Metadata and errors', aliases: ['paths', 'exists', 'null'], guidance:
+    'Every declared metadata and error field is present. A null value means unavailable or inapplicable. ' +
+    'An access error differs from a confirmed missing path. Inspect each result independently.' }]);
+
+export const CURRENT_TIME_GUIDANCE = operationalCatalog('lc_get_current_time',
+  'Return the current time in ISO 8601, RFC 2822, or Unix milliseconds. ' +
+  'tz accepts an IANA timezone such as Europe/Brussels. The default is the local operating-system timezone. ' +
+  'The default format is iso. Inspect tz_warning when a requested timezone is invalid.',
+  'Omit tz for the local timezone or use UTC for a portable timestamp. The unix_ms format is independent of timezone.',
+  [{ title: 'Formats and timezones', aliases: ['tz', 'format', 'rfc2822'], guidance:
+    'tz accepts at most 255 characters. RFC 2822 uses the requested timezone and a numeric offset. ' +
+    'An invalid IANA timezone falls back to the system timezone with tz_warning. Use the returned tz to interpret time.' }]);
+
+export const TODO_WRITE_GUIDANCE = operationalCatalog('lc_todo_write',
+  'Track multi-step work. Send the complete list on every call. It replaces the prior list. ' +
+  'Use from 1 through 20 todos with unique positive integer IDs. Preserve IDs when updating or reordering. ' +
+  'Mark active tasks in progress and completed work promptly. Add completion_evidence when a result supports completion. ' +
+  'LC warns when completed tasks omit it. Use blocked with a short reason when work cannot continue. ' +
+  'Do not use notes as general working memory.',
+  'Skip this tool for a trivial one-step action. IDs need not be sequential. ' +
+  'Keep unchanged tasks in each replacement list. A completed label is not independent proof that the work succeeded.',
+  [{ title: 'Updates and evidence', aliases: ['todos', 'status', 'completion evidence'], guidance:
+    'Send the complete current list, including unchanged tasks. Preserve existing IDs across updates and reordering. ' +
+    'Use completion_evidence for an actual supporting result. Missing evidence produces a warning, not a rejected update. ' +
+    'Use a short blocked reason only when work cannot continue.' }]);
+
+export const WEB_FETCH_GUIDANCE = operationalCatalog('lc_web_fetch',
+  'Fetch one known public URL. Use lc_web_search to discover URLs. ' +
+  'Inspect HTTP status, final_url, content_type, body, and truncated. final_url reflects redirects. ' +
+  'The default strip_mode is minimal. Use clean to remove scripts or raw to retain the received body. ' +
+  'The default max_bytes is 1 MiB, with a 32 MiB cap. ' +
+  'The default timeout_ms is 10 seconds, with a 30-second cap. Private and loopback IP ranges are blocked.',
+  'Start with minimal for HTML. It retains script contents outside removed page sections. ' +
+  'Check truncated before claiming that the complete page was returned.',
+  [
+    { title: 'HTML modes', aliases: ['strip mode', 'minimal', 'clean', 'raw'], guidance:
+      'minimal removes style, head, navigation, footer, and noscript sections, including scripts inside them. ' +
+      'Scripts outside those sections remain available. It strips tags, decodes entities, and collapses whitespace. ' +
+      'clean also removes script blocks. raw returns the body exactly as received within the byte cap. ' +
+      'LC formats JSON in every mode except raw.' },
+    { title: 'Limits and URLs', aliases: ['max bytes', 'timeout', 'redirects', 'private address'], guidance:
+      'The output byte cap can truncate the body. Use the returned final_url after redirects. ' +
+      'Private and loopback addresses are blocked for SSRF protection. Do not retry a blocked address through a different URL spelling.' },
+  ]);
+
+// The same provider facts feed active descriptions and on-demand catalog sections.
+export const SEARCH_PROVIDER_GUIDANCE = Object.freeze({
+  brave: 'Brave Search supports freshness values pd, pw, pm, py, or YYYY-MM-DDtoYYYY-MM-DD. ' +
+    'Set extra_snippets=true to request additional excerpts.',
+  searxng: 'SearXNG aggregates mainstream engines. freshness supports pd, pw, pm, and py. ' +
+    'Custom date ranges and extra_snippets are unsupported. Inspect ignored_params for ignored supplied parameters.',
+  marginalia: 'Marginalia covers independent, text-oriented sites with limited mainstream coverage. ' +
+    'An absent result does not mean the information does not exist. ' +
+    'freshness and extra_snippets are unsupported. Inspect ignored_params for ignored supplied parameters.',
+});
+
+const providerSections: ToolGuidanceSection[] = Object.entries(SEARCH_PROVIDER_GUIDANCE).map(([provider, guidance]) => ({
+  title: `${provider} filters`, aliases: [provider, `${provider} freshness`], guidance,
+}));
+
+export const WEB_SEARCH_GUIDANCE = operationalCatalog('lc_web_search',
+  'Search the web using the configured provider. Results include title, URL, and snippet. ' +
+  'max_results defaults to 5 and cannot exceed 10. Inspect ignored_params before relying on requested filters.',
+  'Use search to discover sources. Use lc_web_fetch for a known URL and lc_web_research for a cited synthesis. ' +
+  'The active provider is named in the tool description. The model cannot select a different provider.',
+  [{ title: 'Queries and results', aliases: ['query', 'max results', 'snippets'], guidance:
+    'Send a nonblank search query. max_results selects from 1 through 10 results. ' +
+    'Each result includes its title, URL, snippet, and available extra_snippets. Empty results do not prove universal absence.' }, ...providerSections]);
+
+export const WEB_RESEARCH_GUIDANCE = operationalCatalog('lc_web_research',
+  'Search, fetch, and synthesize a topic with cited sources. Use this for research across pages. ' +
+  'Provide up to 5 preferred_domains only when known, user-requested, or supplied by an active skill. ' +
+  'Domains are relevance hints, not guarantees of authority. max_results requests 1 through 10 usable sources, default 5. ' +
+  'Inspect confidence_note and research_info, including ignored_params.',
+  'Omit preferred_domains for broad research. A focused search uses them when present. ' +
+  'Use lc_web_fetch for one known page. A synthesis is generated text, not a direct quotation from every source.',
+  [{ title: 'Sources and synthesis', aliases: ['query', 'sources', 'summary'], guidance:
+    'A sub-agent synthesizes the fetched evidence with citations. LC rejects a blank synthesis or one above 64 KiB of UTF-8 text. ' +
+    'Inspect confidence_note for weak evidence. Verify source wording before quoting a generated summary.' },
+  { title: 'Focused search and cost', aliases: ['preferred domains', 'cross check', 'cost'], guidance:
+    'Known preferred_domains focus one search. A normal run uses one search call apart from native transport retries. ' +
+    'With supported providers, cross_check=true adds a second broad search when preferred_domains are present. ' +
+    'Marginalia ignores cross_check and limits each run to one broad or focused search because its shared key is rate-limited.' },
+  ...providerSections]);
+
+export const TOOL_GUIDANCE_CATALOGS: ReadonlyMap<string, ToolGuidanceCatalog> = new Map([
   [GREP_GUIDANCE.tool, GREP_GUIDANCE],
   [READ_FILE_GUIDANCE.tool, READ_FILE_GUIDANCE],
   [READ_PDF_GUIDANCE.tool, READ_PDF_GUIDANCE],
   [WHITEBOARD_GUIDANCE.tool, WHITEBOARD_GUIDANCE],
+  [WRITE_FILE_GUIDANCE.tool, WRITE_FILE_GUIDANCE],
+  [EDIT_FILE_GUIDANCE.tool, EDIT_FILE_GUIDANCE],
+  [LIST_DIR_GUIDANCE.tool, LIST_DIR_GUIDANCE],
+  [GLOB_FILES_GUIDANCE.tool, GLOB_FILES_GUIDANCE],
+  [READ_IMAGE_GUIDANCE.tool, READ_IMAGE_GUIDANCE],
+  [RUN_SHELL_GUIDANCE.tool, RUN_SHELL_GUIDANCE],
+  [STAT_GUIDANCE.tool, STAT_GUIDANCE],
+  [CURRENT_TIME_GUIDANCE.tool, CURRENT_TIME_GUIDANCE],
+  [TODO_WRITE_GUIDANCE.tool, TODO_WRITE_GUIDANCE],
+  [WEB_FETCH_GUIDANCE.tool, WEB_FETCH_GUIDANCE],
+  [APPLY_PATCH_GUIDANCE.tool, APPLY_PATCH_GUIDANCE],
+  [WEB_SEARCH_GUIDANCE.tool, WEB_SEARCH_GUIDANCE],
+  [WEB_RESEARCH_GUIDANCE.tool, WEB_RESEARCH_GUIDANCE],
 ]);
 
 export function guidanceCatalog(tool: string): ToolGuidanceCatalog | undefined {
-  return PILOT_GUIDANCE_CATALOGS.get(tool);
+  return TOOL_GUIDANCE_CATALOGS.get(tool);
 }
 
 export function guidanceSignal(tool: string, signal: string): string | undefined {

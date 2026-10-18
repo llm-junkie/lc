@@ -698,14 +698,14 @@ describe('todo snapshot selection and request projection', () => {
     };
 
     assert.deepEqual(measurements, {
-      noSnapshotRequest: 1_402,
-      survivingCallRequest: 1_637,
+      noSnapshotRequest: 1_316,
+      survivingCallRequest: 1_551,
       typicalProjection: 183,
-      typicalProjectedRequest: 1_712,
+      typicalProjectedRequest: 1_626,
       maximumProjection: 927,
-      maximumProjectedRequest: 2_494,
+      maximumProjectedRequest: 2_408,
       adversarialProjection: 2_731,
-      adversarialProjectedRequest: 4_297,
+      adversarialProjectedRequest: 4_211,
     });
     assert.ok(measurements.typicalProjection <= 250);
     assert.ok(measurements.maximumProjection <= 1_000);

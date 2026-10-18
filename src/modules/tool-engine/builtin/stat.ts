@@ -1,3 +1,4 @@
+import { STAT_GUIDANCE } from '../tool-guidance.ts';
 import { z } from 'zod';
 import type { ToolHandler } from '../types';
 import type { StatEntry, StatResult } from '../sandbox-bridge';
@@ -17,13 +18,7 @@ type Input = z.infer<typeof schema>;
 
 export const stat: ToolHandler<Input, StatResult> = {
   name: 'lc_stat',
-  description:
-    'Get file or directory metadata without reading content.\n' +
-    'For each path, the result reports existence and type.\n' +
-    'Applicable metadata includes size and modification time.\n' +
-    'Every declared metadata and error field is present.\n' +
-    'A field contains null when its value is not applicable or unavailable.\n' +
-    'Use lc_stat instead of lc_read_file when you need only metadata.',
+  description: STAT_GUIDANCE.essential,
   uiDescription: 'Get file/directory metadata without reading content.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

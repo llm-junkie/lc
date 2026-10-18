@@ -28,7 +28,7 @@ const { buildPromptText, buildShellSection } = await import('../chat-pipeline/sy
 const { formatToolBatchLimitMessage } = await import('../chat-pipeline/tool-batch-limit.ts');
 const { validateApprovedPatchPreflight } = await import('../chat-pipeline/patch-authorization.ts');
 const {
-  PILOT_GUIDANCE_CATALOGS,
+  TOOL_GUIDANCE_CATALOGS,
   TOOL_NAME_ENTRIES,
 } = await import('./tool-guidance.ts');
 const {
@@ -255,7 +255,7 @@ describe('model-visible structural STE', () => {
   });
 
   test('checks catalogs, help results, recovery, warnings, suggestions, and limits', () => {
-    for (const catalog of PILOT_GUIDANCE_CATALOGS.values()) {
+    for (const catalog of TOOL_GUIDANCE_CATALOGS.values()) {
       assertStructuralSte(`${catalog.tool} purpose`, catalog.purpose);
       assertStructuralSte(`${catalog.tool} essential`, catalog.essential);
       assertStructuralSte(`${catalog.tool} basic`, catalog.basic);
@@ -751,7 +751,9 @@ test('checks native edit and text-admission recovery messages', () => {
 test('edit descriptions disclose the native match-location cap', () => {
   const definition = materialize(BUILTIN_TOOLS).find((tool) => tool.function.name === 'lc_edit_file');
   assert.ok(definition);
-  assert.match(definition.function.description, /match_lines identifies at most 20 matching locations\./);
+  assert.match(definition.function.description, /old_string must appear exactly once/);
+  const advanced = TOOL_GUIDANCE_CATALOGS.get('lc_edit_file')!.sections.map((section) => section.guidance).join('\n');
+  assert.match(advanced, /match_lines identifies at most 20 matching locations\./);
 });
 
 test('checks the native glob traversal remedy', () => {

@@ -1666,19 +1666,33 @@ embedding search, external search, or nested model call.
 Interactive isolation rejects a complete mixed batch before help admission.
 Therefore, rejected help siblings do not change any help counter.
 
-Detailed catalogs currently exist for `lc_grep`, `lc_read_file`,
-`lc_read_pdf`, and `lc_whiteboard`. A known exposed tool without a detailed
-catalog returns `no_match`.
+Detailed catalogs cover all 17 operational tools. The four coordination tools
+(`lc_ask_user`, `lc_tool_history`, `lc_skill`, and `lc_tool_help`) keep their
+guidance in their definitions. A known exposed coordination tool returns
+`no_match` for detailed help. Hidden tools still return `not_exposed`.
 
 <!-- lc-tool-guidance-sync:catalog-index:start -->
 This table is checked against the typed guidance catalogs. Edit the catalog first.
 
 | Tool | Purpose | Help keywords | Advanced sections |
 |---|---|---|---|
+| `lc_apply_patch` | Apply coordinated file changes from one patch. | `patch syntax`, `hunk matching`, `preparation and partial writes` | `Patch syntax`, `Hunk matching`, `Preparation and partial writes` |
+| `lc_edit_file` | Replace one exact text occurrence in each target. | `input forms`, `match diagnostics`, `missing files` | `Input forms`, `Match diagnostics`, `Missing files` |
+| `lc_get_current_time` | Get the current time in an optional timezone. | `formats and timezones` | `Formats and timezones` |
+| `lc_glob_files` | Search file and directory names recursively. | `patterns and hidden names`, `excluded directories`, `completeness` | `Patterns and hidden names`, `Excluded directories`, `Completeness` |
 | `lc_grep` | Search file contents with regular expressions. | `regex`, `include`, `exclude`, `output modes`, `truncation`, `budgets`, `encoding`, `U+FFFD`, `excluded files`, `diagnostic counters` | `Regular expressions`, `Include and exclude globs`, `Output modes`, `Truncation and budgets`, `Encoding and replacement characters`, `Excluded files`, `Diagnostic counters` |
+| `lc_list_dir` | List one directory without recursive traversal. | `name filters`, `batch preflight` | `Name filters`, `Batch preflight` |
 | `lc_read_file` | Read text files and focused line ranges. | `line ranges`, `size limits`, `encoding`, `UTF-16`, `binary files`, `safe writes`, `SHA-256`, `U+FFFD` | `Line ranges`, `Size limits`, `Encoding`, `Binary files`, `Safe writes`, `Replacement characters` |
+| `lc_read_image` | Read or analyze raster images. | `modes and encoding`, `formats and dimensions`, `cache delivery`, `analysis limits` | `Modes and encoding`, `Formats and dimensions`, `Cache delivery`, `Analysis limits` |
 | `lc_read_pdf` | Read and summarize PDF files. | `exact text`, `provenance`, `page ranges`, `force render`, `vision requirements`, `scans`, `summary limits`, `summarize`, `summary-free reads`, `tables`, `charts`, `truncation` | `Summary-free reads`, `Exact text and provenance`, `Page ranges`, `Vision requirements`, `Summary limits`, `Tables and charts`, `Truncation and budgets` |
+| `lc_run_shell` | Run one approval-controlled executable. | `arguments and windows`, `working directory and environment`, `input and output limits` | `Arguments and Windows`, `Working directory and environment`, `Input and output limits` |
+| `lc_stat` | Read file or directory metadata. | `metadata and errors` | `Metadata and errors` |
+| `lc_todo_write` | Replace the complete task list for the current work. | `updates and evidence` | `Updates and evidence` |
+| `lc_web_fetch` | Fetch content from one known public URL. | `html modes`, `limits and urls` | `HTML modes`, `Limits and URLs` |
+| `lc_web_research` | Search, fetch, and synthesize cited web evidence. | `sources and synthesis`, `focused search and cost`, `brave filters`, `searxng filters`, `marginalia filters` | `Sources and synthesis`, `Focused search and cost`, `brave filters`, `searxng filters`, `marginalia filters` |
+| `lc_web_search` | Search the web for sources or current facts. | `queries and results`, `brave filters`, `searxng filters`, `marginalia filters` | `Queries and results`, `brave filters`, `searxng filters`, `marginalia filters` |
 | `lc_whiteboard` | Read both conversation boards or change only the model board. | `ownership`, `read visibility`, `replace`, `exact edit`, `size limits`, `turn versions` | `Ownership`, `Read visibility`, `Replace`, `Exact edit`, `Size limits`, `Turn versions` |
+| `lc_write_file` | Create, overwrite, or append complete file content. | `modes and paths`, `hash protection`, `partial batches` | `Modes and paths`, `Hash protection`, `Partial batches` |
 <!-- lc-tool-guidance-sync:catalog-index:end -->
 
 ---

@@ -38,7 +38,7 @@ export interface ToolHelpInput {
 }
 
 export const TOOL_HELP_MESSAGES = Object.freeze({
-  noCatalog: 'Detailed guidance is not available for this tool during the pilot.',
+  noCatalog: 'This coordination tool has no detailed catalog. Use its tool definition.',
   noMatch: 'No help section matched this query.',
   ambiguous: 'The tool name did not identify one exposed tool.',
   notExposed: 'This tool is not exposed in the current Workspace.',

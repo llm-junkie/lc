@@ -46,7 +46,7 @@ import { listDir } from './builtin/list_dir.ts';
 import { readFile } from './builtin/read_file.ts';
 import { readImage } from './builtin/read_image.ts';
 import { stat as statTool } from './builtin/stat.ts';
-import { GREP_GUIDANCE } from './tool-guidance.ts';
+import { GREP_GUIDANCE, GLOB_FILES_GUIDANCE } from './tool-guidance.ts';
 import {
   DEFAULT_SERIALIZED_TOOL_RESULT_MAX_BYTES,
   executeToolCall,
@@ -227,15 +227,16 @@ describe('Phase 0 search tool contracts', () => {
     assert.match(descriptionOf(globFiles), /files and directories/i);
     assert.match(descriptionOf(globFiles), /is_dir/);
     assert.match(descriptionOf(globFiles), /zero matches does not prove/i);
-    assert.match(descriptionOf(globFiles), /cancellation returns a normal result/i);
-    assert.match(descriptionOf(globFiles), /preserves matches collected/i);
-    for (const name of FIXED_SEARCH_EXCLUDED_DIRS) assert.ok(descriptionOf(globFiles).includes(`\`${name}\``));
+    const advanced = GLOB_FILES_GUIDANCE.sections.map((section) => section.guidance).join('\n');
+    assert.match(advanced, /cancellation returns a normal result/i);
+    assert.match(advanced, /preserves matches collected/i);
+    for (const name of FIXED_SEARCH_EXCLUDED_DIRS) assert.ok(advanced.includes(`\`${name}\``));
   });
 
   it('uses the same tri-state grep contract in grep and its glob sibling', () => {
     assert.match(GREP_COMPLETENESS_CONTRACT, /error-free lc_grep results/i);
     assert.ok(descriptionOf(grep).includes(GREP_COMPLETENESS_CONTRACT));
-    assert.ok(descriptionOf(globFiles).includes(GREP_COMPLETENESS_CONTRACT));
+    assert.ok(GLOB_FILES_GUIDANCE.sections.some((section) => section.guidance.includes(GREP_COMPLETENESS_CONTRACT)));
   });
 });
 

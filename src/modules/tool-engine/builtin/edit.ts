@@ -1,3 +1,4 @@
+import { EDIT_FILE_GUIDANCE } from '../tool-guidance.ts';
 /**
  * edit_file — replace an exact string in a file with new text.
  *
@@ -137,32 +138,7 @@ function normalize(input: z.infer<typeof schema>): { files: z.infer<typeof fileE
 
 export const edit: ToolHandler<EditInput, EditOutput> = {
   name: 'lc_edit_file',
-  description:
-    'Replace exact strings in files.\n' +
-    'For one file, use the flat form.\n' +
-    'lc_edit_file({ path: "...", old_string: "...", new_string: "..." })\n' +
-    'For multiple files, use the batch form.\n' +
-    'lc_edit_file({ files: [{ path: "...", old_string: "...", new_string: "..." }, ...] })\n' +
-    `A batch accepts from 1 through ${FILESYSTEM_BATCH_MAX_ENTRIES} files.\n` +
-    'Do not combine the flat and batch forms.\n' +
-    'old_string must appear exactly once in each file.\n' +
-    'Include from 3 through 5 lines of context to make the match unambiguous.\n' +
-    'Matching ignores differences between line-ending formats.\n' +
-    'Copy the file indentation exactly.\n' +
-    'Each edit is atomic through a temporary file and rename.\n' +
-    'Batch entries commit independently. A later failure does not roll back earlier changes.\n' +
-    'Use lc_edit_file for targeted changes instead of rewriting entire files.\n' +
-    'If occurrences is 0, the result includes a hint and near_match_lines.\n' +
-    'near_match_lines identifies lines that differ only in whitespace.\n' +
-    'If occurrences is greater than 1, match_lines identifies at most 20 matching locations.\n' +
-    'Use those lines to add context without another file read.\n' +
-    'A pre-match failure reports error instead.\n' +
-    'Pre-match failures include a missing, binary, or oversized file.\n' +
-    'To create a new file, use lc_write_file.\n' +
-    'The single top-level create_if_missing flag applies to every batch entry.\n' +
-    'Do not put create_if_missing inside a files entry.\n' +
-    'If create_if_missing is true, LC writes new_string as the complete missing file.\n' +
-    'In this case, LC ignores old_string.',
+  description: EDIT_FILE_GUIDANCE.essential,
   uiDescription: 'Replace exact strings in files. Flat or batch.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

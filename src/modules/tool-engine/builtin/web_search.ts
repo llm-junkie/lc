@@ -1,3 +1,4 @@
+import { WEB_SEARCH_GUIDANCE, SEARCH_PROVIDER_GUIDANCE } from '../tool-guidance.ts';
 /**
  * web_search — search the web via the user's configured provider.
  *
@@ -13,7 +14,6 @@ import { remainingMs } from '../runner.ts';
 import { useSettings } from '../../../store/settings.ts';
 import {
   NO_PROVIDER_MESSAGE,
-  PROVIDER_LABEL,
   ignoredParamsFor,
   resolveSearchProviderQuietly,
 } from '../search-provider.ts';
@@ -83,39 +83,11 @@ const CACHED_SCHEMA = Object.freeze(schema.toJSONSchema()) as unknown as JsonSch
  * have to guess which caveats apply.
  */
 function describe(): string {
-  // Quiet: materializing a description does not execute a search.
-  // Recording it would report resolutions that never served a call.
+  // Quiet: describing the current provider does not execute a search.
   const resolved = resolveSearchProviderQuietly(useSettings.getState().tools);
-  if (!resolved) {
-    return 'Search the web.\n' +
-      'No search provider is currently configured.\n' +
-      'Configure one in Settings before you call lc_web_search.';
-  }
-  const base =
-    'Search the web using ' + PROVIDER_LABEL[resolved.provider] + '.\n' +
-    'Each result includes a title, URL, and snippet.\n' +
-    'max_results defaults to 5 and has a hard limit of 10.';
-  switch (resolved.provider) {
-    case 'brave':
-      return base +
-        '\nUse freshness to filter results by recency.\n' +
-        'Accepted values are pd, pw, pm, py, or YYYY-MM-DDtoYYYY-MM-DD.\n' +
-        'Set extra_snippets=true to request additional excerpts.';
-    case 'searxng':
-      return base +
-        '\nThis self-hosted metasearch instance aggregates mainstream engines.\n' +
-        'freshness supports the pd, pw, pm, and py presets.\n' +
-        'It does not support a custom YYYY-MM-DDtoYYYY-MM-DD range.\n' +
-        'It does not support extra_snippets.\n' +
-        'ignored_params reports each unsupported supplied parameter.';
-    case 'marginalia':
-      return base +
-        '\nMarginalia indexes independent, text-oriented sites.\n' +
-        'It has limited coverage of commercial and mainstream pages.\n' +
-        'An absent result does not mean the information does not exist.\n' +
-        'Marginalia does not support freshness or extra_snippets.\n' +
-        'If supplied, LC ignores these parameters and reports them in ignored_params.';
-  }
+  return WEB_SEARCH_GUIDANCE.essential + '\n' + (resolved
+    ? SEARCH_PROVIDER_GUIDANCE[resolved.provider]
+    : 'No search provider is currently configured. Configure one in Settings before you call lc_web_search.');
 }
 
 export const webSearch: ToolHandler<WebSearchInput, WebSearchOutput> = {

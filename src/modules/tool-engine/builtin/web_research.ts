@@ -1,3 +1,4 @@
+import { WEB_RESEARCH_GUIDANCE, SEARCH_PROVIDER_GUIDANCE } from '../tool-guidance.ts';
 /**
  * web_research — research a topic using web search + fetch,
  * synthesized by a sub-agent LLM call.
@@ -278,18 +279,7 @@ function describeResearch(): string {
   // Quiet: materializing a description does not execute a search.
   // Recording it would report resolutions that never served a call.
   const resolved = resolveSearchProviderQuietly(useSettings.getState().tools);
-  const base =
-    'Research a topic online.\n' +
-    'lc_web_research searches the web and fetches top results.\n' +
-    'A sub-agent LLM synthesizes findings with cited sources.\n' +
-    'LC rejects a blank synthesis or one above 64 KiB of UTF-8 text.\n' +
-    'Use lc_web_research instead of calling lc_web_search and lc_web_fetch separately.\n' +
-    'Provide preferred_domains only when you know them, the user requests them, or an active skill supplies them.\n' +
-    'Provide at most 5 query-specific preferred_domains.\n' +
-    'If preferred_domains are present, LC performs one focused search.\n' +
-    'These domains are relevance hints, not guarantees of authority.\n' +
-    'max_results sets the desired count of usable sources.\n' +
-    'It defaults to 5, has a minimum of 1, and has a hard limit of 10.';
+  const base = WEB_RESEARCH_GUIDANCE.essential;
 
   if (!resolved) {
     return base + '\nNo search provider is currently configured.\n' +
@@ -305,26 +295,7 @@ function describeResearch(): string {
     : '\nA normal run uses 1 search call, apart from native transport retries.\n' +
       'With preferred_domains, set cross_check=true only when a second, broad search is worth the cost.';
 
-  let filters: string;
-  switch (resolved.provider) {
-    case 'brave':
-      filters = '\nUse freshness to limit results by recency.\n' +
-        'Accepted values are pd, pw, pm, py, or YYYY-MM-DDtoYYYY-MM-DD.\n' +
-        'Set extra_snippets=true to request additional excerpts.';
-      break;
-    case 'searxng':
-      filters = '\nfreshness supports the pd, pw, pm, and py presets.\n' +
-        'It does not support a custom YYYY-MM-DDtoYYYY-MM-DD range.\n' +
-        'SearXNG does not support extra_snippets.';
-      break;
-    case 'marginalia':
-      filters = '\nThis index covers independent, text-oriented sites.\n' +
-        'It has limited coverage of commercial and mainstream pages.\n' +
-        'An absent result does not mean the information does not exist.\n' +
-        'Marginalia has no recency filter, so LC ignores freshness.\n' +
-        'Marginalia does not support extra_snippets.';
-      break;
-  }
+  const filters = "\n" + SEARCH_PROVIDER_GUIDANCE[resolved.provider];
 
   return base + provider + crossCheck + filters +
     '\nresearch_info.ignored_params reports each unsupported supplied parameter.';

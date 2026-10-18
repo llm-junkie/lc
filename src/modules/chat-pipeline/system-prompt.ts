@@ -156,12 +156,15 @@ export function buildPromptText(
     }
     if (helpExposed && lcToolsSkillExposed) {
       toolUsage += '\nUse lc_skill with lc:builtin:lc-tools for cross-tool choices and workflows. ' +
-        'Use lc_tool_help for detailed guidance about one tool.';
+        'Use lc_tool_help when requested details are absent from a tool definition. Do not infer meanings from field names.';
     } else if (helpExposed) {
-      toolUsage += '\nUse lc_tool_help for detailed guidance about one tool.';
+      toolUsage += '\nUse lc_tool_help when requested details are absent from a tool definition. Do not infer meanings from field names.';
     }
     if (askUserExposed) {
       toolUsage += '\nlc_ask_user pauses and returns user input for this turn.';
+    }
+    if (fileEnabled) {
+      toolUsage += '\nIf a read warns about U+FFFD, stop before any mutation. Ask for verified source text.';
     }
     sections.push(toolUsage);
   }

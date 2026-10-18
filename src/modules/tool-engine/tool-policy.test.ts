@@ -219,6 +219,10 @@ describe('bounded utility inputs', () => {
         code: 'invalid_arguments',
         message: `Tool arguments failed validation: ${probe.field}: ${probe.message}`,
         retryable: false,
+        ...(probe.name === 'lc_get_current_time' ? {
+          remedy: 'Correct the invalid arguments and submit a new call.',
+          help: { tool: probe.name, query: 'tz' },
+        } : {}),
       }]);
     }
   });
@@ -285,6 +289,10 @@ describe('bounded utility inputs', () => {
         code: 'invalid_arguments',
         message: `Tool arguments failed validation: ${probe.field}: ${probe.message}`,
         retryable: false,
+        ...(probe.name === 'lc_apply_patch' ? {
+          remedy: 'Correct the invalid arguments and submit a new call.',
+          help: { tool: probe.name, query: 'syntax' },
+        } : {}),
       }]);
 
       const corrected = validateToolCalls([{
@@ -1714,6 +1722,8 @@ describe('optional parameter absence encoding (Invariant 9)', () => {
           code: 'invalid_arguments',
           message: `Tool arguments failed validation: query: query must contain non-whitespace text. Send the topic or question to ${name === 'lc_web_search' ? 'search for.' : 'research.'}`,
           retryable: false,
+          remedy: 'Correct the invalid arguments and submit a new call.',
+          help: { tool: name, query: 'query' },
         }]);
       }
     }

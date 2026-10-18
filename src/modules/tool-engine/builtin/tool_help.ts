@@ -36,9 +36,10 @@ export const toolHelp: ToolHandler<ToolHelpInput, ToolResultEnvelope<ToolHelpDat
   name: 'lc_tool_help',
   description:
     'Get bounded guidance for one exposed tool. Omit query to get basic help. ' +
+    'Call this before guessing undocumented tool behavior or result fields. ' +
     'Provide query to search sections for only that resolved tool. query accepts 160 trimmed characters and eight distinct terms. ' +
     'LC can correct one confident name mistake and discloses the correction. ' +
-    'It never executes an operational call under the corrected name. The tool performs no filesystem, shell, network, or model operation.',
+    'It never executes an operational call under the corrected name. Help is read-only and runs locally.',
   uiDescription: 'Get bounded guidance for one exposed tool.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

@@ -1,3 +1,4 @@
+import { CURRENT_TIME_GUIDANCE } from '../tool-guidance.ts';
 /**
  * get_current_time — return the current time.
  *
@@ -122,14 +123,7 @@ export function resolveTz(requested: string | undefined): { tz: string; tz_warni
 
 export const getCurrentTime: ToolHandler<GetCurrentTimeInput, GetCurrentTimeOutput> = {
   name: 'lc_get_current_time',
-  description:
-    'Return the current time in ISO 8601, RFC 2822, or Unix millisecond format.\n' +
-    'The RFC 2822 format uses the requested timezone and a numeric offset.\n' +
-    'Use tz to request an IANA timezone name.\n' +
-    `tz accepts at most ${CURRENT_TIME_TZ_MAX_CHARACTERS} characters.\n` +
-    'Examples are "Europe/Brussels" and "America/New_York".\n' +
-    'The default timezone is the local operating-system timezone.\n' +
-    'The default format is ISO 8601.',
+  description: CURRENT_TIME_GUIDANCE.essential,
   uiDescription: 'Current time in ISO 8601, RFC 2822, or Unix ms.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

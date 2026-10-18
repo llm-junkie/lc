@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | Active. Implemented through Phase 2. Phase 3 external evaluation remains open. |
-| Maintained | 2026-08-31 |
+| Status | Phases 0–5 complete within the agreed evaluation scope below. |
+| Maintained | 2026-10-18 |
 | Scope | Architecture, contracts, rollout state, and evaluation gates |
 
 LC uses tiered model guidance to reduce the fixed token cost of the system
@@ -17,15 +17,18 @@ condition-specific correction when an error or warning occurs.
 This document is the maintained engineering contract for the feature. Its
 bounds can change after evaluation without changing the architecture or API.
 
-The implementation state on 2026-08-31 is:
+The implementation state on 2026-10-18 is:
 
 - Phase 0, Phase 1, and Phase 2 are complete.
-- Phase 3 has complete local contract, payload, limit, recovery, and STE fixtures.
-- The required multi-model comparison has not run in this repository.
-- Phase 4 and Phase 5 have not started.
+- Phase 3 has a completed informal comparison of Qwen3.6-35B-A3B and GPT-6-luna,
+  with the scope change and remaining measurement limits recorded below.
+- Phase 4 covers all 17 operational tools. The four coordination tools retain
+  their existing definition-based guidance.
+- Phase 5 locks measured payload budgets and three justified description exceptions.
 
 The baseline fixed surface is 8,547 tokens. The pre-Whiteboard pilot fixture is
-6,956 tokens. The current Whiteboard fixture is 7,506 tokens. Exact values live
+6,956 tokens. The Whiteboard baseline is 7,506 tokens. The rollout fixture is
+5,698 tokens, a 24.1% reduction from that baseline. Exact values live
 in `tool-guidance-token.test.ts`. LC does not remove safety guidance to meet a
 payload target.
 
@@ -34,8 +37,8 @@ payload target.
 ## 1. Engineering context
 
 Before tiering, the Windows reference fixture used 8,547 tokens. The
-pre-Whiteboard pilot fixture used 6,956 tokens. The current Whiteboard fixture
-uses 7,506 tokens. The reference fixture uses two workspace roots. Root count
+pre-Whiteboard pilot fixture used 6,956 tokens. The Whiteboard baseline used
+7,506 tokens. The rollout uses 5,698 tokens. The reference fixture uses two workspace roots. Root count
 changes the generated system prompt but does not change the tool payload.
 
 Token counts are not additive. Token boundaries change when strings are joined
@@ -196,7 +199,8 @@ The two retrieval surfaces have separate roles:
 The generated system prompt needs one combined retrieval rule:
 
 > Use `lc_skill` with `lc:builtin:lc-tools` for cross-tool choices and
-> workflows. Use `lc_tool_help` for detailed guidance about one tool.
+> workflows. Use `lc_tool_help` when requested details are absent from a tool
+> definition. Do not infer meanings from field names.
 
 The generated prompt must not name an unavailable tool or skill. LC exposes
 `lc_tool_help` only when at least one operational tool category is exposed.
@@ -204,8 +208,9 @@ Foundation interactions such as `lc_ask_user` can have a canonical
 non-operational name entry without a detailed help catalog. This does not make
 them help-search targets or expose guidance for an unavailable tool.
 
-The current two-root system prompt is 552 tokens. Its checked limit is 560
-tokens. Most savings must come from tool definitions.
+The current two-root system prompt is 584 tokens. Its checked limit is 600
+tokens. The 32-token increase retains explicit help selection and a stop-before-mutation
+rule for U+FFFD warnings. The live local comparison needed both rules.
 
 ## 7. `lc_tool_help` contract
 
@@ -598,9 +603,9 @@ This declaration is a contract. It does not prove that every runtime path emits
 the declared code. Tests must exercise representative emitted codes and compare
 them with the catalog mappings.
 
-During the pilot, only catalogued tools receive mapped recovery. Other tools
-keep current behavior. After the complete rollout, every exposed operational
-tool must have a catalog.
+Every operational tool has a catalog and an invalid-argument recovery mapping.
+Other stable-code mappings remain tool-specific. Coordination tools keep their
+existing recovery behavior. Recovery does not classify errors by their prose.
 
 ## 11. Scope of `lc:builtin:lc-tools`
 
@@ -648,8 +653,8 @@ A catalog contains:
 exposure snapshot. Runtime recovery reads the same error mapping.
 
 The registry validates canonical names, aliases, bounds, and recovery-map keys.
-Tests verify catalog coverage and emitted error codes. A missing catalog is
-allowed only during the pilot and staged rollout.
+Tests verify exact operational catalog coverage, emitted error codes, section
+lookup, and exposure filtering. An operational tool without a catalog fails coverage.
 
 Long developer documentation remains prose. The catalog can carry a stable
 developer-reference anchor, but runtime code does not parse Markdown. Build
@@ -667,11 +672,11 @@ These values are operational bounds and evaluation targets:
 
 | Surface | Target |
 |---|---:|
-| Generated system prompt | At most 560 tokens |
+| Generated system prompt | At most 600 tokens for the fixed workspace fixtures |
 | Ordinary tool description | Prefer at most 120 tokens |
 | Exceptional tool description | At most 250 tokens with justification |
 | Complete `lc_tool_help` definition | At most 220 tokens |
-| Complete system and tool payload | 7,506 tokens for the current Whiteboard fixture |
+| Complete system and tool payload | 5,698 tokens without a configured search provider |
 | Basic help result | At most 400 tokens |
 | One advanced help section | At most 300 tokens |
 | Complete serialized help result | At most 16 KiB and preferably 1,000 tokens |
@@ -679,11 +684,22 @@ These values are operational bounds and evaluation targets:
 | Keywords per tool | At most 12 |
 | Name suggestions | At most 3 |
 
-The pilot reduced the fixed surface from 8,547 tokens to 6,956 tokens. The
-current Whiteboard fixture is 7,506 tokens. The glob traversal-error guidance
-increased the earlier 7,471-token fixture to 7,499 tokens. The web-fetch
-script-preservation clarification adds seven tokens to that fixture.
-These corrections do not expand the pilot's guidance tier rollout.
+The final tool payload is 5,114 tokens. The Windows prompt is 580 tokens with
+one root and 584 with two roots. The Linux fixture is 518 tokens. Active search
+providers increase the complete two-root payload to 5,784 tokens for Brave,
+5,794 for SearXNG, and 5,808 for Marginalia. These are direct full-string
+measurements, not sums of estimated descriptions.
+
+Three description exceptions preserve information needed before a call or
+ordinary result interpretation: `lc_grep` uses 156 tokens for batch filters,
+completeness, and mode-specific result arrays; `lc_apply_patch` uses 169 for
+its input language and partial-write safety; `lc_web_research` uses up to 178
+for the active provider's limitations and extra-search cost. Each has a
+250-token ceiling. Other operational descriptions stay within 120 tokens.
+The complete help definition uses 161 tokens. The cheat sheet uses 890 tokens
+within its 600–900 target. Basic help results are at most 127 tokens, and the
+largest measured advanced lookup is 402 tokens. Existing byte and lookup-count
+bounds are unchanged.
 
 The complete payload assertion is authoritative. Per-tool ceilings are separate
 assertions. The two measurements cannot be reconciled arithmetically.
@@ -731,6 +747,8 @@ The essential description owns these facts:
 - `truncated=null` means that completeness was not determined.
 - `lc_glob_files` searches names.
 - The common include and exclude rule changes ordinary searches.
+- Output modes fill `matches`, `files`, or `counts`, respectively. An empty
+  unused array does not establish absence.
 
 Advanced help or triggered recovery owns these facts:
 
@@ -764,8 +782,9 @@ write-back guard remains on every result that can carry replacement characters.
 provenance, exact-text recovery, vision requirements, and model-dependent
 behavior.
 
-`lc_apply_patch` received its no-loss duplicate reduction before the pilot. Its
-remaining advanced migration follows the same evaluation gates.
+`lc_apply_patch` received its no-loss duplicate reduction before the pilot.
+Its full Add, Move, and Delete syntax now lives in its own catalog. Essential
+guidance retains one update example, no-clobber rules, and partial-write warnings.
 
 ## 15. Rollout
 
@@ -796,12 +815,12 @@ remaining advanced migration follows the same evaluation gates.
 6. Pilot tools use stable error mappings.
 7. Tests verify that every emitted help query returns a catalog match.
 
-### Phase 3 — pilot evaluation: external matrix open
+### Phase 3 — pilot evaluation: complete within revised scope
 
 Local automated contract, payload, limit, recovery, and writing fixtures are
-complete. The external matrix must compare the untiered and tiered surfaces for
-`lc_grep`, `lc_read_file`, and `lc_read_pdf`. It uses the same tasks and provider
-adapters for both variants.
+complete. Live comparisons exercise untiered and tiered surfaces for `lc_grep`,
+`lc_read_file`, and `lc_read_pdf`, using identical tasks, schemas, prompts,
+fixtures, and provider adapters within each pair.
 
 Measure:
 
@@ -818,7 +837,7 @@ Measure:
 - Measure triggered help-result tokens.
 - Measure provider cache observations when they are available.
 
-The matrix must include:
+The original matrix called for:
 
 - Include one current frontier model.
 - Include one smaller hosted model.
@@ -829,18 +848,113 @@ The matrix must include:
 
 The pilot does not pass only because token count decreases.
 
-### Phase 4 — complete rollout: not started
+#### Agreed scope and informal results
 
-Apply the reviewed classification to the remaining operational tools. Add a
-catalog for each tool before moving its advanced guidance.
+The user explicitly accepted local-only evaluation instead of waiting for the
+original model matrix. They subsequently supplied hosted access restricted to
+`gpt-6-luna`. The completed comparison therefore uses Qwen3.6-35B-A3B on an
+OpenAI-compatible local server and GPT-6-luna on OpenAI, both through LC's Chat
+Completions adapter. The local server reported a 262,144-token context. This
+does **not** establish performance with a constrained context or a frontier
+model. Responses and Anthropic transports are not part of the accepted live
+matrix; their existing adapter contract tests remain separate.
 
-Update the generated cheat sheet, developer references, STE tests, and token
-fixtures in the same change.
+The harness in `scripts/evaluate-tool-guidance.ts` covers ten tasks, both
+guidance surfaces, and Tool History on/off: 40 cells per model. It uses real
+provider calls, LC's strict runtime argument validation, actual help retrieval,
+and the help governor. Operational results are controlled synthetic fixtures;
+the harness never executes model-requested writes or shell commands. The
+`too_large` case is deliberate fault injection. The untiered control rebuilds
+the three pilot manuals inline from the current catalogs. It is not a replay
+of the historical 8,547-token application.
 
-### Phase 5 — final budgets: not started
+Informal transcript review found and corrected three guidance weaknesses:
 
-Set final budgets from measured quality and cost. Record justified exceptions
-for complex descriptions. Do not weaken a safety rule to satisfy a token target.
+- Qwen attempted to rewrite U+FFFD text with both surfaces. The read definition,
+  automatic warning, and system prompt now explicitly require verified source
+  text before mutation. Both surfaces stopped safely in the subsequent checks.
+- Both models sometimes interpreted an unused empty `matches` array as absence
+  in `files_with_matches` mode. Essential guidance now names each output array.
+  Populated compact results also carry an automatic mode reminder. Qwen needed
+  that reminder in addition to the definition wording.
+- Qwen overstated `files_selected` as files actually searched. Diagnostic help
+  now distinguishes traversal candidates from bytes actually read and explains
+  that candidates can remain unread after a limit.
+
+The full 80-cell rollout run was reviewed, then the affected content-selection
+and diagnostic-help pairs were rerun for both models and both history states.
+Those 16 corrective rechecks replace the corresponding earlier cells in this
+summary. Earlier failures remain recorded in local review files; they are not
+counted as passes. Windows-path normalization, mode-specific fixture arrays,
+and skill/history envelopes were corrected before the relevant accepted checks.
+
+| Model / surface | Reviewed cells | New invalid calls | Mutation attempts | Tool rounds | Help calls | Help-result tokens |
+|---|---:|---:|---:|---:|---:|---:|
+| Qwen untiered | 20 | 0 | 0 | 21 | 1 | 402 |
+| Qwen tiered | 20 | 0 | 0 | 27 | 2 | 657 |
+| Luna untiered | 20 | 0 | 0 | 30 | 3 | 1,017 |
+| Luna tiered | 20 | 0 | 0 | 33 | 4 | 995 |
+
+Every reviewed final cell met its task's core selection, interpretation,
+recovery, or safety rubric after the corrective rechecks. All 64 applicable
+first operational choices were correct; skill/help retrieval is an allowed
+prerequisite. All four tiered diagnostic tasks retrieved help. No duplicate-help
+loop occurred. The seeded invalid call is excluded from the new-invalid count.
+Exact PDF text, partial reads, incomplete-search interpretation, and archived
+retrieval worked in both surfaces. Contract tests separately exercise help
+limits, duplicate suppression, and hidden-tool filtering.
+
+The tradeoff is visible: tiered runs used six more tool rounds for Qwen and
+three more for Luna. Qwen sometimes performed unnecessary verification after
+a correct search, and Luna once fetched basic help before targeted help. Mean
+observed cell latency was 3.83/3.97 seconds for Qwen and 2.47/2.66 seconds for
+Luna (untiered/tiered). These are small, single-repetition fixture observations,
+not statistically reliable latency claims. No provider usage/cache records were
+captured, so billed-token and cache savings are unmeasured.
+Acceptance is based on reviewed task outcomes and the fixed-payload reduction,
+with this extra-round cost retained as a limitation.
+
+Local evidence is under ignored `.tmp/tool-guidance-rollout-{local,luna}`, with
+the final corrective runs in `.tmp/tool-guidance-mode-{local,luna}-signal` and
+`.tmp/tool-guidance-counters-{local,luna}`. Each run saves inputs, hashes,
+transcripts, metrics, and a review template. The annotated local review and
+`.tmp/tool-guidance-reviewed-summary.json` support this informal note. No
+numbered audit record was created. These ignored artifacts are machine-local;
+the tracked harness and this summary preserve the method and findings.
+
+To reproduce, provide a JSON configuration with `profiles`, `repetitions`,
+`maxRequests`, and `timeoutMs`. A profile names its `role`, `baseUrl`, `model`,
+`apiVariant`, and `apiStyle`. Set `contextTokens` for a local profile. Use
+`apiKeyEnv` or `apiKeyFile` for hosted access, never an inline key. The latter
+reads only the first line inside the process. Credentials are not sent as
+model context, and saved transcripts redact configured keys. Luna Chat runs
+use `reasoningEffort: "none"` and `maxOutputTokens: 1024`.
+
+```sh
+npx tsx scripts/evaluate-tool-guidance.ts --config <config.json> --output <new-output-directory>
+```
+
+Use `--prepare` to inspect inputs without network calls and `--tasks` with
+comma-separated task IDs for corrective paired rechecks. Output directories
+must be new. Review `review.json` against the transcripts before accepting a
+run; the script never automatically declares a quality pass.
+
+### Phase 4 — complete rollout: complete
+
+All 17 operational tools have typed catalogs. Static descriptions read their
+essential guidance from those catalogs. Web descriptions combine the same
+catalog with the active provider's facts, including unsupported options and
+research cost. No schema or authorization boundary was relaxed.
+
+The cheat sheet, generated developer-reference blocks, recovery tables, STE
+checks, catalog coverage, and payload fixtures were updated together.
+
+### Phase 5 — final budgets: complete
+
+Section 13 records the final measured budgets. Exact complete-payload fixtures,
+all-provider description ceilings, and every catalog's help budgets are tested.
+Grep, patch, and research retain explicit exceptions. The system-prompt ceiling
+increased to preserve the rules demonstrated necessary by the live comparison.
 
 ## 16. Evaluation gates
 

@@ -1,3 +1,4 @@
+import { RUN_SHELL_GUIDANCE } from '../tool-guidance.ts';
 /**
  * run_shell — execute a shell command.
  *
@@ -76,28 +77,7 @@ const CACHED_SCHEMA = Object.freeze(schema.toJSONSchema()) as unknown as JsonSch
 
 export const runShell: ToolHandler<RunShellInput, RunShellResult> = {
   name: 'lc_run_shell',
-  description:
-    'Execute an approval-controlled shell command.\n' +
-    'The executable name must satisfy the allowlist in the system prompt.\n' +
-    'Put one executable name in cmd.\n' +
-    'Put its argument array in args.\n' +
-    'For compatibility, cmd can still contain a previously accepted full command string.\n' +
-    'stdin is optional and accepts at most 1 MiB of UTF-8 data.\n' +
-    'LC preserves empty and whitespace-only stdin exactly.\n' +
-    'LC enforces this stdin limit natively.\n' +
-    'If cwd is explicit, it must already exist as a directory inside an allowed root.\n' +
-    'If cwd is omitted, LC uses the first allowed root.\n' +
-    'If no roots exist, LC uses the system temporary directory.\n' +
-    'LC copies a small safe set of parent variables.\n' +
-    'LC clears dangerous loader and runtime variables.\n' +
-    'LC drops overrides that restore those variables or use secret-shaped names.\n' +
-    'stdout and stderr each have a 1 MiB cap.\n' +
-    'The result reports separate truncation flags for both streams.\n' +
-    'The timeout defaults to 30 seconds and has a 120-second hard limit.\n' +
-    'On timeout, timed_out is true and exit_code is null.\n' +
-    'On Windows, use cmd and args for cmd.exe builtins.\n' +
-    'Before approval, LC normalizes explicit cmd /c calls.\n' +
-    'This normalization disables AutoRun, requests Unicode builtin output, and preserves the /c command tail.',
+  description: RUN_SHELL_GUIDANCE.essential,
   uiDescription: '⚠︎ Run an approval-controlled shell command.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

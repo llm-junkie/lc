@@ -873,7 +873,7 @@ addition is **SandboxBridge**, a typed interface for all Tauri tool commands.
 |---|---|
 | `registry.ts` | `BUILTIN_TOOLS` (21 handlers and canonical registry order), `HANDLERS_BY_NAME` (Map), category-list re-exports, `materialize()` (→ wire format) |
 | `runner.ts` | Validation, handler resolution, result envelopes, execution, and mutation-lock coordination |
-| `tool-guidance.ts` | Typed pilot catalogs, declared error codes, recovery mappings, and triggered guidance |
+| `tool-guidance.ts` | Typed catalogs for all operational tools, declared error codes, recovery mappings, and triggered guidance |
 | `tool-help.ts` | One-tool deterministic guidance lookup and bounded help result construction |
 | `tool-help-governor.ts` | Batch-ordered duplicate suppression and per-turn help limits |
 | `tool-name-resolution.ts` | Shared bounded name correction for help and unknown operational calls |

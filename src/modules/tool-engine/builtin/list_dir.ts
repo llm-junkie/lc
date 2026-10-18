@@ -1,10 +1,11 @@
+import { LIST_DIR_GUIDANCE } from '../tool-guidance.ts';
 /**
  * list_dir — list a directory's entries.
  */
 import { z } from 'zod';
 import type { ToolHandler } from '../types';
 import type { JsonSchema } from '../../llm-client/types';
-import { COMMON_GLOB_DIALECT, FILESYSTEM_BATCH_MAX_ENTRIES } from './tool-contract-metadata.ts';
+import { FILESYSTEM_BATCH_MAX_ENTRIES } from './tool-contract-metadata.ts';
 
 const HARD_CAP_LIST_ENTRIES = 5000;
 
@@ -48,22 +49,7 @@ const CACHED_SCHEMA = Object.freeze(schema.toJSONSchema()) as unknown as JsonSch
 
 export const listDir: ToolHandler<ListDirInput, ListDirOutput> = {
   name: 'lc_list_dir',
-  description:
-    'List entries of one or more directories.\n' +
-    `Pass at most ${FILESYSTEM_BATCH_MAX_ENTRIES} directory paths in the paths array.\n` +
-    'Use pattern to filter one entry name with a glob pattern.\n' +
-    'Every directory in the batch must resolve before LC starts the call.\n' +
-    'If one directory does not exist, LC rejects the whole call.\n' +
-    'The path_resolution_failed error names that directory.\n' +
-    'In comparison, lc_read_file reports a missing path for one entry.\n' +
-    'If a path is uncertain, call lc_stat first.\n' +
-    `${COMMON_GLOB_DIALECT}\n` +
-    'lc_list_dir does not search recursively.\n' +
-    'include_hidden=false omits only dot-prefixed entries.\n' +
-    'lc_list_dir has no fixed skip list from lc_grep or lc_glob_files.\n' +
-    'Therefore, ordinary names such as node_modules, dist, and vendor remain listable.\n' +
-    'max_entries defaults to 1000 and has a hard limit of 5000 per directory.\n' +
-    'Each directory result includes a truncated flag.',
+  description: LIST_DIR_GUIDANCE.essential,
   uiDescription: 'List directories. Batch multiple paths.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

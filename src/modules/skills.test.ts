@@ -33,7 +33,7 @@ describe('skill Markdown library', () => {
     assert.equal(parseLcToolsSections(parsed.content).size, 7);
     assert.match(LC_TOOLS_MD, /LC built this guide from the Workspace categories that are exposed now/i);
     assert.match(LC_TOOLS_MD, /Missing sections are not exposed\.\s*Do not call their tools/i);
-    assert.match(LC_TOOLS_MD, /When `lc_tool_help` is exposed,\s*use it for detailed guidance about one tool/i);
+    assert.match(LC_TOOLS_MD, /When `lc_tool_help` is exposed,\s*use it before guessing undocumented options or result fields/i);
     assert.match(LC_TOOLS_MD, /Use `lc_ask_user` only when a missing user decision matters/i);
     assert.match(LC_TOOLS_MD, /Select the narrowest exposed tool and scope/i);
     assert.match(LC_TOOLS_MD, /Wait for each result before the next dependent call/i);

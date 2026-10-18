@@ -774,16 +774,16 @@ The implementation uses these decisions:
 ## 13. Implementation measurements
 
 Exact token fixtures use the repository tokenizer and complete serialized
-payloads. The current all-category fixed surface is 7,506 tokens. A request
-without todo state is 1,402 tokens. A surviving todo call produces 1,637
+payloads. The current all-category fixed surface is 5,698 tokens without a search provider. A request
+without todo state is 1,316 tokens. A surviving todo call produces 1,551
 tokens.
 
 A typical eight-item projection is 183 tokens. Its complete archived request
-is 1,712 tokens. The 20-item projection is 927 tokens. Its complete request is
-2,494 tokens.
+is 1,626 tokens. The 20-item projection is 927 tokens. Its complete request is
+2,408 tokens.
 
 The adversarial Unicode projection is 2,731 tokens. Its complete request is
-4,297 tokens. This lossless-data case exceeds the 1,000-token projection target.
+4,211 tokens. This lossless-data case exceeds the 1,000-token projection target.
 LC retains exact titles without truncation or rewriting.
 
 Repository tests own the policy, schema, snapshot, request, token, UI, and

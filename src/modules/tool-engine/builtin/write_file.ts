@@ -1,3 +1,4 @@
+import { WRITE_FILE_GUIDANCE } from '../tool-guidance.ts';
 /**
  * write_file — create, overwrite, or append to a UTF-8 text file.
  *
@@ -45,26 +46,7 @@ const CACHED_SCHEMA = Object.freeze(schema.toJSONSchema()) as unknown as JsonSch
 
 export const writeFile: ToolHandler<WriteFileInput, WriteFileOutput> = {
   name: 'lc_write_file',
-  description:
-    'Write or append content to one or more UTF-8 text files.\n' +
-    'Each files entry contains its own path and content.\n' +
-    `A call accepts at most ${FILESYSTEM_BATCH_MAX_ENTRIES} files.\n` +
-    'Use separate entries to write different content to different files.\n' +
-    'Batch entries commit independently. A later failure does not roll back earlier changes.\n' +
-    'The single top-level mode applies to every files entry.\n' +
-    'Do not put mode inside a files entry.\n' +
-    'mode="create" is the default and fails if the file exists.\n' +
-    'mode="overwrite" replaces an existing file or creates a missing file.\n' +
-    'mode="append" appends content to the target.\n' +
-    'LC creates missing parent directories.\n' +
-    'A path in a new subfolder needs no separate directory step.\n' +
-    'When overwriting a file that you read, pass expected_sha256.\n' +
-    'Use the sha256 value that lc_read_file returned.\n' +
-    'If the existing content changed, LC rejects the write.\n' +
-    'This rejection prevents silent loss of those changes.\n' +
-    'If expected_sha256 is supplied and the file was deleted, create and overwrite modes proceed.\n' +
-    'Under the same condition, append mode refuses.\n' +
-    'Example: lc_write_file({ files: [{ path: "...", content: "..." }], mode: "overwrite" })',
+  description: WRITE_FILE_GUIDANCE.essential,
   uiDescription: 'Write/append content to files. Per-file content.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

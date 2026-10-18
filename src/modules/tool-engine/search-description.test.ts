@@ -19,6 +19,7 @@
  */
 import { beforeEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { encode } from 'gpt-tokenizer';
 
 class MemoryStorage {
   private readonly values = new Map<string, string>();
@@ -66,6 +67,14 @@ beforeEach(() => {
 
 for (const tool of ['lc_web_search', 'lc_web_research']) {
   describe(`${tool} description`, () => {
+    test('bounds every active provider description without removing its caveats', () => {
+      for (const settings of [
+        NO_PROVIDER,
+        { ...NO_PROVIDER, brave_search_api_key: 'fixture' },
+        { ...NO_PROVIDER, searxng_base_url: 'http://localhost:8080' },
+        { ...NO_PROVIDER, marginalia_api_key: 'public' },
+      ]) assert.ok(encode(describeTool(tool, settings)).length <= (tool === 'lc_web_research' ? 250 : 120));
+    });
     test('names Brave when Brave is active', () => {
       const text = describeTool(tool, { ...NO_PROVIDER, brave_search_api_key: 'bsa-key' });
       assert.match(text, /Brave Search/);

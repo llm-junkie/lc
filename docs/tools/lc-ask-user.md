@@ -35,9 +35,9 @@ the user decides, but the interaction coordinator applies a separate 30-minute
 absolute attention cap. The existing result envelope, provider tool-message
 protocol, and generic Tool History stubbing remain unchanged.
 
-The current shared fixture records a 552-token two-root system prompt. The
-complete fixed prompt and tool surface is 7,506 tokens. The
-generated LC Tool Cheat Sheet is 889 tokens. `tool-guidance-token.test.ts` owns
+The current shared fixture records a 584-token two-root system prompt. The
+complete fixed prompt and tool surface is 5,698 tokens without a search provider. The
+generated LC Tool Cheat Sheet is 890 tokens. `tool-guidance-token.test.ts` owns
 these values.
 
 Automated modal tests cover choice navigation, custom text, Skip, and the Done

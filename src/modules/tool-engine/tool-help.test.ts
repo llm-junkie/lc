@@ -21,7 +21,7 @@ import {
   TOOL_HELP_TOTAL_LIMIT,
 } from './tool-help-governor.ts';
 import {
-  PILOT_GUIDANCE_CATALOGS,
+  TOOL_GUIDANCE_CATALOGS,
   TOOL_NAME_ENTRIES,
   type ToolGuidanceCatalog,
 } from './tool-guidance.ts';
@@ -99,15 +99,35 @@ describe('lc_tool_help contract', () => {
     assert.equal(JSON.stringify(first).includes('PDF'), false);
   });
 
-  test('returns no_match without guidance for an unknown query or staged catalog', () => {
+  test('returns no_match without guidance for an unknown query or coordination tool', () => {
     const unknownQuery = dataOf(buildToolHelpEnvelope({ tool: 'lc_read_pdf', query: 'zzzxxyy' }, exposed));
     assert.equal(unknownQuery.mode, 'no_match');
     assert.equal('guidance' in unknownQuery, false);
     assert.equal('matches' in unknownQuery, false);
 
-    const staged = dataOf(buildToolHelpEnvelope({ tool: 'lc_write_file' }, exposed));
-    assert.equal(staged.mode, 'no_match');
-    assert.match(staged.message ?? '', /pilot/);
+    const coordination = dataOf(buildToolHelpEnvelope({ tool: 'lc_tool_help' }, exposed));
+    assert.equal(coordination.mode, 'no_match');
+    assert.match(coordination.message ?? '', /coordination tool/);
+  });
+
+  test('covers every operational tool and preserves exposure filtering', () => {
+    const names = TOOL_NAME_ENTRIES.filter((entry) => entry.operational).map((entry) => entry.name);
+    assert.deepEqual([...TOOL_GUIDANCE_CATALOGS.keys()].sort(), names.sort());
+    const all = new Set(TOOL_NAME_ENTRIES.map((entry) => entry.name));
+    for (const name of names) {
+      const catalog = TOOL_GUIDANCE_CATALOGS.get(name)!;
+      assert.equal(dataOf(buildToolHelpEnvelope({ tool: name }, all)).mode, 'basic');
+      for (const section of catalog.sections) {
+        const help = dataOf(buildToolHelpEnvelope({ tool: name, query: section.title }, all));
+        assert.equal(help.mode, 'matched', name + ': ' + section.title);
+        assert.ok(help.matches?.some((match) => match.section === section.title));
+      }
+      const hidden = new Set(all);
+      hidden.delete(name);
+      assert.doesNotMatch(JSON.stringify(buildToolHelpEnvelope({ tool: name }, hidden)), /"guidance":/);
+      const issue = addCatalogRecovery(name, { code: 'invalid_arguments', message: 'Invalid arguments.' });
+      assert.ok(issue.remedy, name);
+    }
   });
 
   test('corrects only confident help names and discloses the correction', () => {
@@ -206,7 +226,7 @@ describe('lc_tool_help contract', () => {
   });
 
   test('keeps every catalog recovery help query resolvable', () => {
-    for (const catalog of PILOT_GUIDANCE_CATALOGS.values()) {
+    for (const catalog of TOOL_GUIDANCE_CATALOGS.values()) {
       for (const recovery of Object.values(catalog.recovery)) {
         if (!recovery.helpQuery) continue;
         const result = buildToolHelpData(
@@ -310,7 +330,7 @@ describe('tool help governor', () => {
   });
 
   test('preserves rank when the highest match exceeds the byte bound', () => {
-    const catalogs = PILOT_GUIDANCE_CATALOGS as Map<string, ToolGuidanceCatalog>;
+    const catalogs = TOOL_GUIDANCE_CATALOGS as Map<string, ToolGuidanceCatalog>;
     const original = catalogs.get('lc_grep');
     assert.ok(original);
     catalogs.set('lc_grep', {
@@ -608,7 +628,7 @@ describe('triggered pilot safety guidance', () => {
     );
     assert.ok('results' in result);
     assert.equal(result.warnings.length, 1);
-    assert.match(result.warnings[0], /Do not write this text back automatically/);
+    assert.match(result.warnings[0], /Do not call a write, edit, patch, or shell tool/);
   });
 
   test('warns on grep truncation and replacement characters', async () => {
@@ -634,6 +654,21 @@ describe('triggered pilot safety guidance', () => {
     assert.equal(result.warnings.length, 2);
     assert.match(result.warnings.join('\n'), /result is incomplete/);
     assert.match(result.warnings.join('\n'), /contains U\+FFFD/);
+  });
+
+  test('identifies populated compact grep arrays without changing their result shape', async () => {
+    for (const mode of ['files_with_matches', 'count', 'content'] as const) {
+      const result = await grep.run({ searches: [{ path: 'D:/repo', pattern: 'x' }], output_mode: mode }, context({
+        grep: async () => ({ results: [{ path: 'D:/repo', pattern: 'x', matches: [], truncated: false,
+          files: mode === 'files_with_matches' ? ['D:/repo/a.txt'] : [],
+          counts: mode === 'count' ? [{ file: 'D:/repo/a.txt', count: 1 }] : [],
+        }] }),
+      }));
+      assert.ok('results' in result);
+      assert.deepEqual(result.results[0].matches, []);
+      assert.equal(result.warnings.length, mode === 'content' ? 0 : 1);
+      if (mode !== 'content') assert.match(result.warnings[0], /matches array is unused and empty/);
+    }
   });
 
   test('warns when grep completeness is not determined', async () => {

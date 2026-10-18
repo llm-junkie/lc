@@ -1,3 +1,4 @@
+import { TOOL_GUIDANCE_CATALOGS } from '../tool-engine/tool-guidance.ts';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { WHITEBOARD_SYSTEM_PROMPT_RULES, buildPromptText, buildShellSection, selectSystemPromptText } from './system-prompt.ts';
@@ -70,7 +71,7 @@ describe('system prompt contract', () => {
     assert.match(prompt, /Use only currently exposed tools\./i);
     assert.match(
       prompt,
-      /Use lc_skill with lc:builtin:lc-tools for cross-tool choices and workflows\. Use lc_tool_help for detailed guidance about one tool\./,
+      /Use lc_skill with lc:builtin:lc-tools for cross-tool choices and workflows\. Use lc_tool_help when requested details are absent from a tool definition\./,
     );
   });
 
@@ -83,7 +84,7 @@ describe('system prompt contract', () => {
     const fileOnly = promptFor(true, false);
     assert.ok(fileOnly.includes('Configured file roots: C:\\workspace, D:\\outside'));
     assert.match(fileOnly, /exact canonical scope/);
-    assert.match(fileOnly, /Use lc_tool_help for detailed guidance about one tool/);
+    assert.match(fileOnly, /Use lc_tool_help when requested details are absent from a tool definition/);
     assert.match(fileOnly, /Batch only independent file calls\./);
     assert.match(fileOnly, /Wait for each result before the next dependent file call\./);
     assert.doesNotMatch(fileOnly, /lc_run_shell\.cwd/);
@@ -325,7 +326,11 @@ describe('materialized tool-description contracts', () => {
     assert.match(description('lc_read_file'), /default output cap is 1 MiB/i);
     assert.match(description('lc_read_file'), /fails without a partial body/i);
 
-    const image = description('lc_read_image');
+    const allGuidance = (name: string) => {
+      const catalog = TOOL_GUIDANCE_CATALOGS.get(name)!;
+      return [description(name), catalog.basic, ...catalog.sections.map((section) => section.guidance)].join('\n');
+    };
+    const image = allGuidance('lc_read_image');
     for (const claim of ['20 paths', 'first 10 paths', '10 MiB', '50 MiB', '100 megapixels', '16,384']) {
       assert.ok(image.includes(claim), `missing image claim: ${claim}`);
     }
@@ -337,7 +342,7 @@ describe('materialized tool-description contracts', () => {
     assert.match(history, /If message_id is provided/);
     assert.match(history, /If tool_call_id is provided/);
 
-    const shell = description('lc_run_shell');
+    const shell = allGuidance('lc_run_shell');
     assert.match(shell, /approval-controlled/i);
     assert.match(shell, /first allowed root[\s\S]*system temporary directory/i);
     assert.match(shell, /secret-shaped/i);
@@ -346,11 +351,11 @@ describe('materialized tool-description contracts', () => {
 
     const patch = description('lc_apply_patch');
     assert.match(patch, /1 MiB per patch/);
-    assert.match(patch, /32 MiB per target file/);
-    assert.match(patch, /64 MiB across the prepared plan/);
+    assert.match(patch, /32 MiB per target/);
+    assert.match(patch, /64 MiB per prepared plan/);
 
-    const list = description('lc_list_dir');
-    assert.match(list, /no fixed skip list from lc_grep or lc_glob_files/i);
+    const list = allGuidance('lc_list_dir');
+    assert.match(list, /no fixed directory skip list/i);
     assert.match(list, /node_modules, dist, and vendor/);
 
     const research = description('lc_web_research');

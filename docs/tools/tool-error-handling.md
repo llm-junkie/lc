@@ -58,9 +58,8 @@ not treated as structured result framing.
 }
 ```
 
-Recovery is owned by the typed catalogs for `lc_grep`, `lc_read_file`,
-`lc_read_pdf`, and `lc_whiteboard`. The same catalog owns each emitted help
-query. A catalog mapping
+Recovery is owned by typed catalogs for all 17 operational tools. The same
+catalog owns each emitted help query. A catalog mapping
 can reference only a declared stable error code. LC does not select recovery by
 parsing a human-readable message.
 
@@ -69,18 +68,32 @@ These tables are checked against the typed guidance catalogs. Edit the catalog f
 
 | Tool | Stable code | Catalog remedy | Help query |
 |---|---|---|---|
+| `lc_apply_patch` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `syntax` |
+| `lc_edit_file` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `syntax` |
+| `lc_get_current_time` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `tz` |
+| `lc_glob_files` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `pattern` |
+| `lc_glob_files` | `path_resolution_failed` | Choose an existing root directory before retrying. | `patterns` |
 | `lc_grep` | `invalid_arguments` | Correct the invalid grep arguments and submit a new call. | `regex` |
 | `lc_grep` | `invalid_regex` | Correct the regular expression and submit a new call. | `regex` |
 | `lc_grep` | `path_resolution_failed` | Correct or remove the unresolved path, then submit the complete batch again. | — |
+| `lc_list_dir` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `pattern` |
+| `lc_list_dir` | `path_resolution_failed` | Correct or remove the unresolved directory, then submit the complete batch again. | `preflight` |
 | `lc_read_file` | `binary_detected` | Use the dedicated reader for a known image or PDF. Ask the user about other binary data. | `binary files` |
 | `lc_read_file` | `encoding_not_utf8` | LC has no conversion tool. Ask the user to convert the file to UTF-8. | — |
 | `lc_read_file` | `invalid_arguments` | Correct the invalid read arguments and submit a new call. | `line ranges size limits` |
 | `lc_read_file` | `too_large` | Narrow the line range or increase max_bytes within the 32 MiB limit. | `size limits` |
+| `lc_read_image` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `analyze` |
 | `lc_read_pdf` | `invalid_arguments` | Correct the named PDF field and submit a new call. | `summary-free reads` |
 | `lc_read_pdf` | `invalid_page_selection` | Omit pages to read every page. Otherwise, use one-based pages such as "1-5,12". | `page ranges` |
 | `lc_read_pdf` | `invalid_render_selection` | Omit force_render to force no extra pages. Otherwise, use one-based pages such as "1-5,12". | `force render` |
 | `lc_read_pdf` | `timeout` | Narrow the page range before you submit a new call. | `truncation budgets` |
 | `lc_read_pdf` | `too_large` | Increase max_bytes within 100 MiB or use a smaller PDF. | — |
+| `lc_run_shell` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `cmd` |
+| `lc_stat` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `paths` |
+| `lc_todo_write` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `todos` |
+| `lc_web_fetch` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `strip mode` |
+| `lc_web_research` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `query` |
+| `lc_web_search` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `query` |
 | `lc_whiteboard` | `aborted` | Read the current boards in a later turn before you continue. | — |
 | `lc_whiteboard` | `invalid_arguments` | Send one valid read, replace, or edit input. Do not send fields from another action. | — |
 | `lc_whiteboard` | `whiteboard_batch_conflict` | Send one intended whiteboard call in a later batch and wait for its result. | — |
@@ -91,13 +104,16 @@ These tables are checked against the typed guidance catalogs. Edit the catalog f
 | `lc_whiteboard` | `whiteboard_too_large` | Reduce the resulting Markdown to 32 KiB or less. | `size limits` |
 | `lc_whiteboard` | `whiteboard_version_missing` | Do not retry the missing ID. Report that the retained version is unavailable. | — |
 | `lc_whiteboard` | `whiteboard_write_failed` | Retry after LC storage is available. Read the board before a later exact edit. | — |
+| `lc_write_file` | `invalid_arguments` | Correct the invalid arguments and submit a new call. | `mode` |
 
 | Tool | Automatic signal | Catalog warning |
 |---|---|---|
 | `lc_grep` | `completeness_unknown` | WARNING: Grep could not determine completeness. Read truncated_reason, then narrow the path or split the searches. |
+| `lc_grep` | `count` | Per-file match totals are in counts. The matches array is unused and empty in count mode. |
+| `lc_grep` | `files_with_matches` | Matching file paths are in files. The matches array is unused and empty in files_with_matches mode. |
 | `lc_grep` | `replacement_character` | WARNING: A grep match contains U+FFFD. Do not write that match text back. Ask the user to convert the file before a write. |
 | `lc_grep` | `truncated` | WARNING: The grep result is incomplete. Read truncated_reason, then narrow the path or split the searches. |
-| `lc_read_file` | `replacement_character` | WARNING: Returned text contains U+FFFD. Do not write this text back automatically. Ask the user to verify or convert the source. |
+| `lc_read_file` | `replacement_character` | WARNING: Returned text contains U+FFFD and may not preserve the original text. Do not call a write, edit, patch, or shell tool with this text. Stop and request verified source text before any rewrite. |
 <!-- lc-tool-guidance-sync:recovery-index:end -->
 
 `retryable: true` means that the same arguments can succeed later without a

@@ -1,3 +1,4 @@
+import { WEB_FETCH_GUIDANCE } from '../tool-guidance.ts';
 /**
  * web_fetch — fetch a URL, return text content.
  *
@@ -46,22 +47,7 @@ const CACHED_SCHEMA = Object.freeze(schema.toJSONSchema()) as unknown as JsonSch
 
 export const webFetch: ToolHandler<WebFetchInput, WebFetchOutput> = {
   name: 'lc_web_fetch',
-  description:
-    'Fetch the contents of a public URL.\n' +
-    'The result includes the HTTP status, final URL, content type, and body.\n' +
-    'The final URL reflects redirects.\n' +
-    'strip_mode="minimal" is the default and recommended HTML mode.\n' +
-    'It removes style, head, navigation, footer, and noscript content.\n' +
-    'Scripts inside these sections are removed too.\n' +
-    'Script contents outside these sections remain available.\n' +
-    'It also strips tags, decodes entities, and collapses whitespace.\n' +
-    'Use strip_mode="clean" when script blocks contain only noise.\n' +
-    'strip_mode="clean" also removes script blocks.\n' +
-    'strip_mode="raw" returns the body exactly as received.\n' +
-    'LC formats JSON in all modes except raw mode.\n' +
-    'max_bytes defaults to 1 MiB and has a 32 MiB hard limit.\n' +
-    'timeout_ms defaults to 10 seconds and has a 30-second hard limit.\n' +
-    'LC blocks private and loopback IP ranges for SSRF protection.',
+  description: WEB_FETCH_GUIDANCE.essential,
   uiDescription: 'Fetch a public URL. Body truncated; private IPs blocked.',
   input: schema,
   toJsonSchema: () => CACHED_SCHEMA,

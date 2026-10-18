@@ -10,7 +10,7 @@ revision: 1
 
 LC built this guide from the Workspace categories that are exposed now.
 Retrieve a new copy after exposure changes. When `lc_tool_help` is exposed,
-use it for detailed guidance about one tool. Missing sections are not exposed.
+use it before guessing undocumented options or result fields. Missing sections are not exposed.
 Do not call their tools.
 
 ## Operating loop
