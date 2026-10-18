@@ -180,7 +180,7 @@ them behaves as before.
 | Provider / API surface | Envelope | Verification | Live evidence |
 |---|---|---|---|
 | OpenAI — Chat Completions | Chat Completions | **live-verified** | 2026-08-05 — read counter growing across three turns (0 → 5,248 → 5,504) on `gpt-4.1-mini`. No write counter, as the envelope predicts. |
-| OpenAI — Responses | Responses | **live-verified** | 2026-08-04 — read **and** write counters, three repeated requests |
+| OpenAI — Responses | Responses | **live-verified** | 2026-10-18 informal release probe on `gpt-6-luna`: two HTTP 200 responses; recognized read and write fields; read bucket zero → 1k–9k and explicit-zero writes. Earlier three-request evidence: 2026-08-04. |
 | OpenRouter — Chat Completions | Chat Completions (router) | **live-verified** | 2026-08-05 — router-reported read and explicit-zero write, three turns (read 0 → 7,936 → 0). See [§3.3](#33-a-router-read-can-drop-back-to-zero). |
 | OpenRouter — Responses | Responses (router) | **live-verified** | 2026-08-05 — router-reported read, three turns (0 → 7,808 → 0). See [§3.3](#33-a-router-read-can-drop-back-to-zero). |
 | Anthropic — Messages | Anthropic | **live-verified** | 2026-08-05 — read **and** write counters plus the TTL breakdown, three growing-prefix turns on `claude-sonnet-5`. See [§3.1](#31-anthropic-caching-is-opt-in). |
@@ -383,7 +383,15 @@ One LM Studio instance, one model (`qwen/qwen3.6-35b-a3b`), 2026-08-05:
 | Anthropic Messages | `reported` | 6,037 → 7,078 → 7,545 |
 | Chat Completions | **`not-reported`** | — |
 
-This is not an LC parsing defect. In the same batch, the Chat Completions path
+The informal Windows release check on 2026-10-18 repeated two fixed synthetic
+requests per envelope with the same model. All six requests returned HTTP 200.
+Responses and Messages reported read counters in the 1k–9k bucket and omitted
+write counters. Chat Completions again omitted all recognized cache fields, so
+the live-probe harness returned `fail` for that envelope's field-presence check.
+This is evidence of `not-reported`, not a failed chat request. The bounded probe
+outputs are retained locally under .tmp/release-validation-20261018/.
+
+This is not an LC parsing defect. In the original 2026-08-05 batch, the Chat Completions path
 reported reads from QwenCloud (`glm-5.2`) and an OpenCode gateway (`hy3`).
 Therefore, LC recognizes `prompt_tokens_details.cached_tokens`. LM Studio does
 not send it. Nor does it mean nothing was cached.

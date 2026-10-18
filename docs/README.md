@@ -121,6 +121,28 @@ No additional feature is implied by that list. A release is not blocked on
 pinned context, MCP, a Tool History browser, provider cache tuning, or other
 breadth.
 
+An informal Windows check on 2026-10-18 used commit `a091698`. All 2,479
+JavaScript/TypeScript tests, application and test typechecks, full lint on a
+clean source snapshot, documentation/version/license checks, production build,
+and Windows packaging passed. The original working-directory lint command
+included an ignored `.tmp` probe and reported 11 scratch-file errors; the
+clean-snapshot run used the unmodified `eslint .` command. Rust reported 405
+passing tests and one fixture-setup failure: Windows refused symlink creation
+with error 1314, and the administrative-share fallback returned error 5. The
+same test failed with a separate temporary directory. This Rust gate still
+needs a run with symlink-creation rights.
+
+NSIS, MSI, and portable archives built successfully. Installer integrity and
+payload checks passed; their executable differences were limited to Tauri's
+three-byte package-type marker, and bundled resources matched. The stock
+portable app passed concurrency, cancellation, capacity/draft retention,
+restart recovery, manual Safe Start and its one-shot retry, and support-report
+privacy checks. Installation/uninstallation was not exercised. Local raw
+evidence is retained under .tmp/release-validation-20261018/; this was not a
+numbered audit. See [the concurrency evidence](./concurrent-conversations.md#release-evidence)
+and [dated cache probes](./cache-observability.md#3-provider-coverage-and-how-it-was-verified)
+for their narrower scopes.
+
 ### Manual desktop-platform validation
 
 | Platform | Status |
@@ -135,18 +157,28 @@ breadth.
 These dated risk acceptances are not passes. Re-examine each acceptance during
 the release gate.
 
+On 2026-10-18, the project owner deferred the remaining Windows symlink-test
+rerun, installer installation/uninstallation checks, repeated-viewer retention
+sweep, and fresh macOS/Linux runtime checks as low-priority follow-ups. They
+do not take priority over current scoped work. They remain validation gaps,
+not confirmed product defects or passing results; the standing release gate
+is unchanged. Revisit them when relevant code changes, a related issue is
+reported, or a suitable validation environment is available.
+
 | Residual | Disposition |
 |---|---|
+| Windows symlink-test fixture | Deferred, low priority as of 2026-10-18. The fixture could not create its symlink on this host (errors 1314 and 5); rerun with symlink-creation rights. The Rust release gate remains unresolved for this test. |
+| Windows installer lifecycle | Deferred, low priority as of 2026-10-18. NSIS/MSI build, archive integrity, and payload checks passed; installation/uninstallation remains unverified. |
 | Linux WebKitGTK performance | Manual runtime certification is current for Linux Mint 22.3 Cinnamon and Fedora 44 Workstation as of 2026-08-28, but no formal Linux performance measurement is recorded. |
 | macOS (Apple Silicon and Intel) | `ci.yml` and `pre-release.yml` provide source-level test coverage on `macos-latest`; `pre-release.yml` then builds Apple Silicon and Intel artifacts after its test matrix passes. `release.yml` requires CI to pass on the tagged commit before building both targets. No workflow launches the packaged app or executes the Intel artifact, and no manual Mac test has been performed. Runtime compatibility remains unverified. |
-| Automated packaged-app launch | Manual runtime certification is current for Windows 11, Linux Mint 22.3 Cinnamon, and Fedora 44 Workstation as of 2026-08-28. Automated packaged-app launch coverage is still absent on every platform. |
+| Automated packaged-app launch | The informal 2026-10-18 Windows run launched and exercised the stock portable package with isolated data. Reusable CI coverage that launches packaged apps is still absent on every platform. Earlier manual platform certification remains as listed above. |
 | Excalidraw fonts (12.50 MiB) | On 2026-08-19, the copy script staged 234 files with a total size of 13,107,068 bytes. The repository accepts this size for complete offline CJK fidelity. The fonts load only when needed and are absent from the cold path. The copy script stages only the package's production font directory. It does not stage locale JSON files. |
 | Large-history message-list virtualization | On 2026-08-19, source inspection confirmed that `ChatView` still maps every non-tool message to a `MessageBubble`. The list is not virtualized. This audit did not repeat the earlier browser measurement. Therefore, the living index does not retain its numeric results as current performance evidence. |
 | Completed very-long reasoning DOM | On 2026-08-24, source and tests confirmed that live reasoning is bounded and every completed field over 6,400 characters reopens through the same 6,400-character progressive budget. Markdown-safe tails stay within the budget when a boundary is available; an oversized final atomic block uses a bounded plain-text tail. Each user click doubles the budget, and repeated clicks can reach the full settled render. Source inspection confirms that this explicit full render is not virtualized. See [architecture.md](./architecture.md#long-reasoning-streaming-is-bounded). |
-| Repeated viewer open/close heap retention | The repository has no current heap trace. Release-platform validation still owns a formal repeated-open and close retention check. This status was checked again on 2026-08-19. |
-| Three-conversation tool/image soak | No current 30-minute forced-GC renderer soak is recorded. Release validation must capture heap start/end, resident transcript/UI counts, image-cache bytes, and Dexie write-latency percentiles. This status was checked on 2026-08-24. See [concurrent-conversations.md](./concurrent-conversations.md#release-evidence-still-required). |
-| Same-profile concurrent provider behavior | No current observation records whether one real LM Studio or other local profile executes, queues, or rejects three simultaneous generations. This is provider behavior, but release validation must characterize it. This status was checked on 2026-08-24. See [concurrent-conversations.md](./concurrent-conversations.md#release-evidence-still-required). |
-| Packaged concurrent-chat interaction | The packaged startup path is covered separately. Repository evidence does not yet include a final packaged-UI pass with simultaneous generation, targeted cancellation, capacity refusal/draft retention, and Sidebar ownership. This status was checked on 2026-08-24. See [concurrent-conversations.md](./concurrent-conversations.md#release-evidence-still-required). |
+| Repeated viewer open/close heap retention | A formal repeated-open and close retention sweep remains outstanding. The 2026-10-18 Windows run checked a tool preview functionally; its concurrency soak does not substitute for a repeated-viewer heap trace. |
+| Three-conversation tool/image soak | Passed an informal Windows run on 2026-10-18: thirty minutes with three active chats, native 20-image tool batches, forced-GC heap measurements, residency/cache counters, and storage-write percentiles. Cache peaked at 52.79 MiB and cleared on completion; 2,756 writes had zero failures. Counters came from a separate instrumented release variant with a controlled provider. See [concurrent-conversations.md](./concurrent-conversations.md#release-evidence) for scope, peak heap, timing, and cleanup details. |
+| Same-profile concurrent provider behavior | On 2026-10-18, three stock packaged-app chats using one local `qwen/qwen3.6-35b-a3b` profile received HTTP 200 and overlapping streams. A separate direct-provider probe confirmed overlapping nonempty content deltas. This characterizes that server/model configuration only. See [concurrent-conversations.md](./concurrent-conversations.md#release-evidence). |
+| Packaged concurrent-chat interaction | Passed on the stock Windows portable package on 2026-10-18: simultaneous generation, targeted background cancellation, fourth-chat capacity refusal with retained draft, Sidebar ownership, and forced-interruption recovery without replay. See [concurrent-conversations.md](./concurrent-conversations.md#release-evidence). |
 
 These manual platform checks cover runtime functionality, not formal
 performance measurement or automated packaged-app launch. macOS remains at

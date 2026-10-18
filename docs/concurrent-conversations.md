@@ -229,19 +229,72 @@ batch, byte, and generation counts. They do not contain conversation IDs,
 generation IDs, tool-call IDs, prompts, paths, pixels, endpoints, or secrets.
 Reading diagnostics does not allocate or clear runtime caches.
 
-## Release evidence still required
+## Release evidence
 
-The implementation has automated source coverage, and the packaged build has a
-startup smoke result. These environment-dependent observations remain release
-gates:
+An informal Windows release check on 2026-10-18 exercised all three previously
+outstanding concurrency observations against commit `a091698`. This was a local
+run on Windows 11 build 26300, with WebView2 155; it was not a numbered audit or
+a new cross-platform certification. Raw logs, counters, fixture scripts, and
+bounded reports are retained locally in .tmp/release-validation-20261018/.
 
-1. A 30-minute three-conversation tool/image soak with forced-GC start/end heap,
-   resident-count, image-cache byte, and Dexie write-latency measurements.
-2. Three conversations against the same real LM Studio or other local profile,
-   recording whether that server executes, queues, or rejects them.
-3. A final packaged-UI pass that exercises simultaneous generation, targeted
-   cancellation, capacity refusal with draft retention, Sidebar ownership, and
-   recovery—not only packaged startup.
+The **stock portable package** passed simultaneous generation, Sidebar
+ownership, targeted background cancellation, fourth-chat capacity refusal with
+draft retention, and forced-interruption recovery. Stopping the middle chat
+cancelled only its request and enabled Send for the retained fourth draft.
+After a forced process exit, the interrupted transcript retained its checkpoint,
+reported `interrupted`, and did not replay its request. Manual Safe Start,
+its support-report preview, and its one-shot normal-start retry also passed.
+
+Three stock packaged-app chats using the same real local
+`qwen/qwen3.6-35b-a3b` profile received HTTP 200 and overlapping streams. First
+transport chunks arrived after 756, 197, and 196 ms. A separate three-request
+direct-provider probe confirmed overlapping nonempty content deltas. This
+characterizes the tested server/model configuration; it does not establish
+concurrency behavior for other providers or models.
+
+The **30-minute tool/image soak** used a separate optimized release variant
+with read-only counters and three new fixture conversations. Only
+`lc_read_image` was pre-granted, for the generated image folder. Controlled
+provider streams drove the production tool loop and native image reader;
+the long soak did not run model inference. Each call read the maximum 20 paths:
+480×480 RGB PNGs, 13,839,160 raw bytes per batch, using `encoding: original`
+and `analyze: false`. Including staggered warm-up, the three sessions completed
+262 tool calls and delivered 5,240 images. All completed normally.
+
+| Measurement | Observed result |
+|---|---|
+| Measurement window | 1,800,072 ms; 62 samples; three active sessions in every sample |
+| Shared stream overlap | 1,811,571 ms |
+| Image cache | At most three batches, three owners, and 55,358,040 bytes (52.79 MiB); zero batches, owners, and bytes after completion |
+| Residency | At most four resident conversations (three active plus an idle selected chat), three loaded transcripts, and four UI entries |
+| Final navigation | One resident idle chat, zero loaded transcripts, four bounded UI entries; its original draft remained intact and Send was enabled |
+| Request history | At most three retained request projections |
+| Forced-GC renderer heap | Cold idle 19.27 MiB; measurement start 127.88 MiB; end 197.15 MiB; settled 24.86 MiB; after navigation 24.55 MiB |
+| Warmed forced-GC checkpoints | Approximately 3/10/20 minutes: 182.05 / 185.71 / 191.51 MiB; the initial measurement had only two image batches |
+| Peak sampled heap without forced GC | 920.60 MiB |
+| Storage writes | 2,756 read-write transactions; zero failures; p50 4.1 ms, p95 17.4 ms, p99 25.6 ms, maximum 382.6 ms |
+| Renderer exceptions | Zero uncaught exceptions |
+
+Storage timing measures the Dexie backing store's IndexedDB transaction
+creation-to-completion interval, including transaction waiting. It excludes
+application persistence-lane waiting before transaction creation. The three
+completed transcripts remained loaded until navigation, which evicted them.
+The counters establish observed bounds and cleanup for this workload, not a
+general memory-leak proof or a repeated-viewer retention result.
+
+The live support report correctly projected three writing owners and the image
+cache in 14,158 bytes, with no collection failures or fixture paths, prompts,
+model identifiers, or endpoint details. Two buffered startup CSP messages
+about the initial IPC fetch were observed; the Tauri transport fallback,
+native tool calls, and manual Safe Start worked.
+
+Remaining validation is separate: Windows symlink-test setup still needs
+creation rights, installer installation/uninstallation was not exercised,
+macOS/Linux runtime checks were not repeated here, and the formal repeated-viewer
+retention sweep remains outstanding. On 2026-10-18, the project owner deferred
+these as low-priority follow-ups for the current scope. This records priority,
+not passing results or a change to the standing release gate. See the
+[release gate and residuals](./README.md#release-gate).
 
 The applicable reusable evidence matrices live in audit templates A02, A04,
 A05, A06, A07, A08, A09, A10, A12, A14, A15, and A16 under
