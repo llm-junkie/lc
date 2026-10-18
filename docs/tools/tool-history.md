@@ -404,8 +404,9 @@ using the parenthetical suffix. Tool names are deduplicated via `Set`.
 | **Empty/whitespace optional strings** | Treated as omitted before mode selection, so constrained decoders may safely emit unused fields as `""` |
 | **Active turn queried** | Not indexed by the handler. Only completed turns can be searched or retrieved. |
 | **Search bound reached** | Partial deterministic results plus `truncation_reasons` and `scan_coverage_pct`. A miss under partial coverage is not a proven no-match. |
-| **Single result exceeds max cap** | Truncate valid UTF-8 head+tail to `min(max_result_bytes, 256 KiB)`, set `output_truncated: true` |
-| **Total results exceed max_result_bytes** | Return only output bytes that fit, set `truncated: true`, `truncated_bytes`, and `coverage_pct` |
+| **Single output exceeds max cap** | Truncate valid UTF-8 head+tail to `min(max_result_bytes, 256 KiB)`, set `output_truncated: true` |
+| **Total retrieval output exceeds max_result_bytes** | Return only output bytes that fit, set `truncated: true`, `truncated_bytes`, and `coverage_pct` |
+| **Complete serialized response exceeds 4 MiB** | The runner returns a `result_too_large` error instead of the payload |
 | **message_id not found** | Return `{ message_id: "...", total_archived: 0, returned: 0, truncated: false, results: [], available_message_ids: [...] }` — no `error` field. The id list (max 20) exists because a miss otherwise looks identical to a turn that archived nothing |
 | **Model imitates the marker** | Intended: the marker names `lc_tool_history` in list mode, so a copied call returns the archive index |
 | **No archived results** | Return `{ results: [], total_archived: 0 }` |
@@ -416,6 +417,13 @@ using the parenthetical suffix. Tool names are deduplicated via `Set`.
 | **Tool History off** | Provider requests replay complete historical Whiteboard calls/results like all other explicit tool history. The reference-only projection is not applied to ordinary replay. |
 | **Workspace off** | No stubs are generated and `lc_tool_history` is not exposed |
 | **Protocol compliance** | Every archived assistant gets a distinct stable `archived_{escapedMessageId}` call/result pair. The synthetic function name is `lc_tool_history`, which is always exposed wherever archiving runs. |
+
+For message and direct-call retrieval, `max_result_bytes` budgets only UTF-8
+bytes in returned `output` strings. Arguments and metadata are outside this
+budget. List mode counts serialized summary entries. Search mode counts
+serialized hit entries. Response wrappers and separators between entries are
+outside these mode budgets. The runner's separate 4 MiB limit covers the
+complete serialized response.
 
 ---
 

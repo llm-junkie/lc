@@ -308,12 +308,11 @@ fn is_blocked_v6(ip: std::net::Ipv6Addr) -> bool {
         || (first == 0x3fff && segments[1] < 0x1000)
 }
 
-/// HTML-to-text cleaner.  With `minimal = false`, removes script,
-/// style, nav, head, and footer blocks (aggressive — best for
-/// content-heavy pages).  With `minimal = true`, keeps script
-/// blocks (where SPA inline data lives) and only removes style,
-/// head, nav, and footer.  Both modes then strip remaining tags,
-/// decode entities, and collapse whitespace.
+/// HTML-to-text cleaner. Both modes remove style, head, nav, footer, and
+/// noscript sections, including scripts inside them. Minimal mode preserves
+/// script contents outside those sections. Clean mode removes those scripts
+/// too. Both modes then strip remaining tags, decode entities, and collapse
+/// whitespace.
 fn strip_html_tags(html: &str, minimal: bool) -> String {
     static BLOCK_CLEAN_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     static BLOCK_MINIMAL_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();

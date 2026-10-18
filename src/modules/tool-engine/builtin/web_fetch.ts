@@ -25,11 +25,10 @@ const schema = z.object({
     WEB_FETCH_HARD_CAP_TIMEOUT_MS,
     `timeout_ms must be at most ${WEB_FETCH_HARD_CAP_TIMEOUT_MS}. Use 30000 milliseconds or less.`,
   ).optional(),
-  /** How to process HTML. "minimal" (default, recommended) keeps
-   *  script blocks (SPA data survives) but removes style/head/nav/
-   *  footer, then strips tags. "clean" removes script blocks too
-   *  (use for content-heavy pages with no inline JS data). "raw"
-   *  returns the body exactly as received. */
+  /** HTML processing: "minimal" removes style/head/nav/footer/noscript sections,
+   *  including scripts inside them, then strips remaining tags. Script contents
+   *  outside those sections survive. "clean" removes those scripts too.
+   *  "raw" returns the body without this processing. */
   strip_mode: z.enum(['clean', 'minimal', 'raw']).optional(),
 }).strict();
 
@@ -52,8 +51,9 @@ export const webFetch: ToolHandler<WebFetchInput, WebFetchOutput> = {
     'The result includes the HTTP status, final URL, content type, and body.\n' +
     'The final URL reflects redirects.\n' +
     'strip_mode="minimal" is the default and recommended HTML mode.\n' +
-    'This mode keeps script blocks so that SPA inline data remains available.\n' +
-    'It removes style, head, navigation, and footer content.\n' +
+    'It removes style, head, navigation, footer, and noscript content.\n' +
+    'Scripts inside these sections are removed too.\n' +
+    'Script contents outside these sections remain available.\n' +
     'It also strips tags, decodes entities, and collapses whitespace.\n' +
     'Use strip_mode="clean" when script blocks contain only noise.\n' +
     'strip_mode="clean" also removes script blocks.\n' +

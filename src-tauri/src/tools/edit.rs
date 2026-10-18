@@ -30,26 +30,51 @@ fn count_text_lines(content: &str) -> usize {
     content.lines().count()
 }
 
-/// 1-based line numbers of each non-overlapping occurrence of `needle`.
-///
-/// `match_indices` yields strictly increasing positions, so the newline count
-/// advances with a single forward scan instead of re-counting each prefix.
-fn match_line_numbers(haystack: &str, needle: &str, limit: usize) -> Vec<usize> {
-    if needle.is_empty() {
-        return Vec::new();
+/// Count every occurrence, including overlaps, and retain at most `limit`
+/// 1-based start lines. KMP keeps repetitive inputs linear in total byte length.
+fn count_matches_and_lines(haystack: &str, needle: &str, limit: usize) -> (usize, Vec<usize>) {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return (0, Vec::new());
     }
-    let mut out = Vec::new();
+    let pattern = needle.as_bytes();
+    let mut prefix = vec![0; pattern.len()];
+    let mut matched = 0;
+    for index in 1..pattern.len() {
+        while matched > 0 && pattern[index] != pattern[matched] {
+            matched = prefix[matched - 1];
+        }
+        if pattern[index] == pattern[matched] {
+            matched += 1;
+        }
+        prefix[index] = matched;
+    }
+
+    let mut count = 0;
+    let mut lines = Vec::new();
     let mut line = 1usize;
     let mut cursor = 0usize;
-    for (pos, _) in haystack.match_indices(needle) {
-        line += haystack[cursor..pos].matches('\n').count();
-        cursor = pos;
-        out.push(line);
-        if out.len() >= limit {
-            break;
+    matched = 0;
+    for (index, &byte) in haystack.as_bytes().iter().enumerate() {
+        while matched > 0 && byte != pattern[matched] {
+            matched = prefix[matched - 1];
+        }
+        if byte == pattern[matched] {
+            matched += 1;
+        }
+        if matched == pattern.len() {
+            count += 1;
+            if lines.len() < limit {
+                // A complete UTF-8 needle can only match at character boundaries.
+                let start = index + 1 - pattern.len();
+                line += haystack[cursor..start].matches('\n').count();
+                cursor = start;
+                lines.push(line);
+            }
+            // Retain the matching suffix so the next match can overlap this one.
+            matched = prefix[matched - 1];
         }
     }
-    out
+    (count, lines)
 }
 
 /// 1-based start lines where `needle_lines` matches `haystack_lines` under a
@@ -313,7 +338,8 @@ fn edit_single_file(
         );
     }
 
-    let count = content_normalized.matches(&old_normalized).count();
+    let (count, match_lines) =
+        count_matches_and_lines(&content_normalized, &old_normalized, MAX_REPORTED_LINES);
 
     if count == 0 {
         // Failure stays a non-exception "silent success" so the model can
@@ -331,8 +357,6 @@ fn edit_single_file(
     if count > 1 {
         // Report where the matches are so the model can pick disambiguating
         // context without rereading the file.
-        let match_lines =
-            match_line_numbers(&content_normalized, &old_normalized, MAX_REPORTED_LINES);
         return serde_json::json!({
             "path": path,
             "replaced": false, "occurrences": count, "file_exists": true,
@@ -389,6 +413,85 @@ fn edit_err_entry(path: &str, msg: &str, file_exists: bool) -> serde_json::Value
 #[cfg(test)]
 mod tests {
     use super::{tool_edit, EditFileEntry, EditRequest};
+
+    #[tokio::test]
+    async fn native_edit_rejects_overlapping_matches_without_changing_files() {
+        let root = std::env::temp_dir().join(format!(
+            "lc-edit-overlap-{}-{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let repeated_lines = "a\n".repeat(24);
+        let repeated_bytes = "a".repeat(32_768);
+        let long_needle = "a".repeat(16_384);
+        for (name, before, old, count, lines) in [
+            ("ascii", "banana", "ana", 2, vec![1, 1]),
+            ("repeated", "aaaaa", "aaa", 3, vec![1, 1, 1]),
+            ("unicode", "ééé", "éé", 2, vec![1, 1]),
+            ("emoji", "🦀🦀🦀", "🦀🦀", 2, vec![1, 1]),
+            ("lf", "x\nx\nx", "x\nx", 2, vec![1, 2]),
+            ("crlf", "x\r\nx\r\nx", "x\nx", 2, vec![1, 2]),
+            ("separate", "ana\nana", "ana", 2, vec![1, 2]),
+            (
+                "bounded_lines",
+                repeated_lines.as_str(),
+                "a\na",
+                23,
+                (1..=20).collect(),
+            ),
+            (
+                "long_overlap",
+                repeated_bytes.as_str(),
+                long_needle.as_str(),
+                16_385,
+                vec![1; 20],
+            ),
+        ] {
+            let path = root.join(format!("{name}.txt"));
+            std::fs::write(&path, before).unwrap();
+            let result = tool_edit(EditRequest {
+                files: vec![EditFileEntry {
+                    path: path.to_string_lossy().into_owned(),
+                    old_string: old.into(),
+                    new_string: "X".into(),
+                }],
+                create_if_missing: None,
+                allowed_roots: Some(vec![root.to_string_lossy().into_owned()]),
+            })
+            .await
+            .unwrap();
+            let entry = &result["results"][0];
+            assert_eq!(std::fs::read(&path).unwrap(), before.as_bytes(), "{name}");
+            assert_eq!(entry["replaced"], false, "{name}: {entry}");
+            assert_eq!(entry["occurrences"], count, "{name}: {entry}");
+            assert_eq!(entry["match_lines"], serde_json::json!(lines), "{name}");
+            assert_eq!(entry["bytes_before"], before.len(), "{name}");
+            assert_eq!(entry["bytes_after"], before.len(), "{name}");
+            assert_eq!(
+                entry["hint"],
+                "old_string is ambiguous. Add surrounding lines until it appears exactly once."
+            );
+        }
+
+        // Replay the remedy against the refused ASCII file with unique context.
+        let path = root.join("ascii.txt");
+        let result = tool_edit(EditRequest {
+            files: vec![EditFileEntry {
+                path: path.to_string_lossy().into_owned(),
+                old_string: "banana".into(),
+                new_string: "bXna".into(),
+            }],
+            create_if_missing: None,
+            allowed_roots: Some(vec![root.to_string_lossy().into_owned()]),
+        })
+        .await
+        .unwrap();
+        assert_eq!(result["results"][0]["replaced"], true);
+        assert_eq!(result["results"][0]["occurrences"], 1);
+        assert_eq!(std::fs::read(&path).unwrap(), b"bXna");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[tokio::test]
     async fn native_edit_preserves_line_endings_and_meaningful_replacements() {
@@ -568,7 +671,7 @@ mod tests {
 
     // ── match line numbers (ambiguous edits) ────────────────────
 
-    use super::{diagnose_miss, edit_single_file, match_line_numbers, MAX_REPORTED_LINES};
+    use super::{count_matches_and_lines, diagnose_miss, edit_single_file, MAX_REPORTED_LINES};
 
     #[test]
     fn concurrent_create_if_missing_calls_never_clobber_each_other() {
@@ -611,27 +714,33 @@ mod tests {
     #[test]
     fn match_lines_reports_every_occurrence() {
         let content = "a\ntarget\nb\ntarget\nc\ntarget\n";
-        let lines = match_line_numbers(content, "target", MAX_REPORTED_LINES);
+        let (count, lines) = count_matches_and_lines(content, "target", MAX_REPORTED_LINES);
+        assert_eq!(count, 3);
         assert_eq!(lines, vec![2, 4, 6]);
     }
 
     #[test]
     fn match_lines_handles_multiline_needle() {
         let content = "x\nfoo\nbar\ny\nfoo\nbar\n";
-        let lines = match_line_numbers(content, "foo\nbar", MAX_REPORTED_LINES);
+        let (count, lines) = count_matches_and_lines(content, "foo\nbar", MAX_REPORTED_LINES);
+        assert_eq!(count, 2);
         assert_eq!(lines, vec![2, 5]);
     }
 
     #[test]
     fn match_lines_respects_limit() {
         let content = "dup\n".repeat(100);
-        let lines = match_line_numbers(&content, "dup", 5);
+        let (count, lines) = count_matches_and_lines(&content, "dup", 5);
+        assert_eq!(count, 100);
         assert_eq!(lines, vec![1, 2, 3, 4, 5]);
     }
 
     #[test]
     fn match_lines_empty_needle_is_empty() {
-        assert!(match_line_numbers("anything", "", MAX_REPORTED_LINES).is_empty());
+        assert_eq!(
+            count_matches_and_lines("anything", "", MAX_REPORTED_LINES),
+            (0, vec![])
+        );
     }
 
     // ── miss diagnosis ──────────────────────────────────────────

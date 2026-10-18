@@ -673,16 +673,21 @@ results use the existing `ToolResultEnvelope`; help mode is only in `data.mode`.
 | Invalid message_id (not found) | `{ message_id, total_archived: 0, returned: 0, results: [], available_message_ids: [...] }` | ✅ Up to 20 real archived turn IDs make the retry concrete |
 | tool_call_id not found | `{ total_archived: 0, returned: 0, results: [], available_message_ids: [...] }` | ✅ The same bounded turn-ID inventory provides a recovery path |
 | Query exceeds 512 characters or 16 distinct terms | Validation/search error naming `query`, the applicable limit, and a narrowing remedy | ✅ Shorten or narrow the query. No input is silently dropped. |
-| Result exceeds `max_result_bytes` | `{ truncated: true, truncated_bytes: N }` | ✅ Clear — model can increase `max_result_bytes` (up to 524288) |
-| Per-result exceeds 256 KB cap | `{ output_truncated: true }` per entry | ✅ Clear per-entry flag |
+| Retrieval output exceeds `max_result_bytes` | `{ truncated: true, truncated_bytes: N }` | ✅ Increase `max_result_bytes` up to 524288. Each output still has a separate 256 KiB limit. |
+| Per-result output exceeds 256 KiB cap | `{ output_truncated: true }` per entry | ✅ Clear per-entry flag |
 | No filters (list mode) | Returns bounded structured `summary` entries with message IDs | ✅ Model can then query by message_id |
 | Archived Whiteboard result | Action-only `arguments` and fixed redacted `output`. Owning-message or exact-call retrieval adds top-level `whiteboard_refs` when the assistant has them, including for an ordinary sibling result. | ✅ Call `lc_whiteboard` with `action: "read"` for current content. Historical Markdown is intentionally unavailable. |
 | Whiteboard content used as a search query | No hit from board Markdown or mutation fields | ✅ Search can find the projected action, tool name, or call ID without exposing board text. |
 | Result has no resolvable owning call | `tool_name: "unknown"`, empty arguments, bounded generic redacted output; excluded from search | ⚠️ Fails closed. LC does not expose an unowned payload under an invented name. |
 
 **Observed behavior:** Unknown IDs return a bounded inventory of real archived
-turn IDs instead of a bare miss. The caller's UTF-8 byte limit applies to every
-mode. It covers direct lookup, list summaries, and the first oversized result.
+turn IDs instead of a bare miss. The caller's byte budget covers output text
+in retrieval mode, serialized summary entries in list mode, and serialized
+hits in search mode. Retrieval arguments and surrounding response fields are
+outside these budgets. The runner separately caps the complete serialized
+response at 4 MiB and returns `result_too_large` on overflow.
+
+Output truncation also applies to the first oversized retrieval result.
 Returned text always remains valid UTF-8. Whiteboard and unresolved-call
 projections remain bounded even though canonical local history is unchanged.
 

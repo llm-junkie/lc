@@ -31,13 +31,13 @@ const PRE_WHITEBOARD = Object.freeze({
 });
 
 const WHITEBOARD = Object.freeze({
-  toolPayload: 6_947,
+  toolPayload: 6_954,
   schemaPayload: 2_660,
   schemaPayloadWithoutDescriptions: 2_220,
   systemPromptOneRoot: 548,
   systemPromptTwoRoots: 552,
   systemPromptLinux: 486,
-  completeFixedSurface: 7_499,
+  completeFixedSurface: 7_506,
 });
 
 const tools = {

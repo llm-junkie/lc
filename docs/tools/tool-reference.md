@@ -123,8 +123,7 @@ ranges from larger files without buffering the full file.
     size_bytes: number
     truncated: boolean          // Always false; oversized requests return an error
     error_code?: string         // Stable code on an error entry; absent on success
-    error: string | null       // e.g. "2546 bytes > max 500 bytes", "binary_detected",
-                               // or "encoding_not_utf8"
+    error: string | null       // Public message on failure; error_code carries the stable code
   }>
 }
 ```
@@ -150,8 +149,11 @@ rejected. The native operation is registered under its call and group IDs.
 Cancellation stops at the next chunk or path and returns `aborted`.
 
 After a successful full or ranged read, `size_bytes`, `total_lines`, and
-`sha256` describe the complete source file. An overflow error contains zero
-counter values. The error text gives the actual byte count.
+`sha256` describe the complete source file. In a mixed batch, an overflow
+entry contains zero counter values. The public `too_large` message is
+"The requested content exceeds the read limit. LC returns no content for this file."
+It does not include the native byte counts. The recovery directs the caller to
+narrow the line range or increase `max_bytes` within 32 MiB.
 
 If one path fails, LC returns the existing `ToolResultEnvelope`. A mixed batch
 uses `status: "partial"` and keeps the results plus one issue per failed path.
@@ -490,7 +492,13 @@ summarizing sub-agent. Native result assembly excludes `data_url` before IPC
 and persistence. The configured model provider receives the
 images, so its retention policy still applies.
 
-**Degradation.** A scan at `depth: "text_only"` returns `has_text_layer: false` with a warning naming the retry (and saying so plainly when no vision model makes that retry possible). With no sub-agent available, page metadata and text are still returned. Encrypted PDFs fail with a clear message rather than an empty extraction.
+**Degradation.** A scan at `depth: "text_only"` returns `has_text_layer: false`
+with a warning naming the retry. The warning states when that retry requires
+a vision model. If summarization is requested without an available sub-agent
+model, LC returns page metadata, `summary: null`, and a warning.
+Page text is returned only with
+`include_text: true` or `summarize: false`. Encrypted PDFs fail with a clear
+message rather than an empty extraction.
 
 **OCR is not enabled.** The handler pins `ExtractMode::TextOnly`, so `pdf_oxide`'s OCR path — which would want to download recognition models at runtime — never engages.
 
@@ -899,6 +907,11 @@ ignored.
 
 **Edge cases:** Non-matching `old_string` returns `occurrences: 0, replaced: false` — no exception, safe retry. Multiple occurrences also treated as failure (ambiguous). An empty `old_string` on an existing file is an error, not an ambiguous match.
 
+Overlapping occurrences count as separate matches. For example, `ana` occurs
+twice in `banana`, so LC refuses that edit and leaves the file unchanged.
+`match_lines` includes both start lines, even when they are the same line.
+LC reports at most 20 start lines but counts every occurrence.
+
 **Miss diagnosis.** Replacement is strictly exact (apart from line-ending normalization) — `lc_edit_file` never applies a fuzzy match, because a silent wrong edit is worse than a failed one. When the exact match fails, the same comparator ladder `lc_apply_patch` uses for recovery runs here purely to explain the miss, and `hint` reports the most specific cause:
 
 | Cause | `hint` says | `near_match_lines` |
@@ -1117,7 +1130,11 @@ Globally reachable exceptions in `192.0.0.0/24` and `2001::/23`
 remain available. LC disables automatic redirects. A bounded manual loop
 resolves, validates, and pins each hop. Blocked redirects return `blocked_host`,
 not a successful 3xx.
-**Strip modes:** `minimal` keeps `<script>` blocks (SPA-friendly), `clean` removes all HTML tags, `raw` returns unmodified.
+**Strip modes:** `minimal` removes `style`, `head`, `nav`, `footer`, and
+`noscript` sections, including scripts inside them. Script contents outside
+those sections remain available. `clean` also removes script contents.
+Both modes strip remaining tags, decode entities, and collapse whitespace.
+`raw` returns the body without this processing.
 
 Omitted `timeout_ms` defaults to ten seconds.
 A shorter remaining round deadline can reduce this default.
@@ -1683,8 +1700,8 @@ on demand. Pure JS — reads from the conversation store.
                                // max 512 characters and 16 distinct terms.
                                // Mutually exclusive with tool_call_id.
   max_results?: number         // Search hits returned (default 10, hard maximum 50)
-  max_result_bytes?: number    // Max total bytes returned (default 65536, range 1–524288)
-                               // Individual results also capped at 262144 bytes head+tail
+  max_result_bytes?: number    // Mode-specific byte budget (default 65536, range 1–524288)
+                               // Retrieval budgets output text; each output also has a 256 KiB cap
 }
 
 // Output (with filters — message_id or tool_call_id)
@@ -1700,7 +1717,7 @@ on demand. Pure JS — reads from the conversation store.
   truncated: boolean           // true if byte cap was exceeded
   truncated_bytes: number      // Available output bytes omitted by caps; zero when complete
   available_message_ids: string[] // Real ids offered after a miss; otherwise empty
-  coverage_pct: number         // Percentage of available bytes returned (0–100), e.g. 88.99
+  coverage_pct: number         // Percentage of available output bytes returned (0–100)
   results: Array<{
     tool_call_id: string
     tool_name: string
@@ -1834,11 +1851,25 @@ The same field accompanies a `tool_call_id` that matches nothing.
 
 Results from
 the active assistant turn are excluded. This matches the context-stubbing
-boundary. `max_result_bytes` applies to list, message, and direct-call modes.
-It also applies to the first oversized result. Truncation preserves valid UTF-8
-and does not exceed the requested byte count.
+boundary.
 
-Each result's `output` has a 256 KiB limit.
+**Byte budgets:** `max_result_bytes` measures different content in each mode:
+
+| Mode | Bytes counted |
+|---|---|
+| Message or direct-call retrieval | UTF-8 bytes across returned `output` strings |
+| List | Sum of serialized `summary` entry bytes |
+| Search | Sum of serialized `hits` entry bytes |
+
+Retrieval arguments and metadata do not consume the output budget.
+Response wrappers and separators between entries are outside these mode budgets.
+Retrieval truncation preserves valid UTF-8 and also applies to the first
+oversized output. Each result's `output` has a separate 256 KiB limit.
+Retrieval `truncated_bytes` and `coverage_pct` describe output bytes.
+List coverage instead measures the proportion of archived calls represented.
+
+The runner separately limits the complete serialized response to 4 MiB.
+An oversized response returns `result_too_large` instead of the payload.
 
 **Whiteboard projection:** `lc_tool_history` never returns archived board
 Markdown or mutation payloads. A resolved `lc_whiteboard` result keeps only

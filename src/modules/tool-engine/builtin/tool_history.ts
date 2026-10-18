@@ -49,8 +49,10 @@ const schema = z.object({
     SEARCH_MAX_RESULTS,
     `max_results must be at most ${SEARCH_MAX_RESULTS}. Use ${SEARCH_MAX_RESULTS} or a smaller result limit.`,
   ).default(SEARCH_DEFAULT_MAX_RESULTS).optional(),
-  /** Maximum total bytes across all returned results (1–524288).
-   *  Individual results are also capped at 262144 bytes head+tail. */
+  /** Mode budget (1–524288 bytes): output strings for retrieval, serialized
+   *  summary entries for list mode, or serialized hits for search mode.
+   *  Each retrieved output is also capped at 262144 bytes head+tail.
+   *  The runner separately caps the complete serialized response at 4 MiB. */
   max_result_bytes: z.number().int().min(1).max(
     524288,
     'max_result_bytes must be at most 524288. Use 524288 or a smaller byte limit.',
@@ -94,8 +96,8 @@ export interface ToolHistoryOutput {
   /** Archived turn ids, returned when a lookup matches nothing so the next
    *  call can name a real one instead of guessing again. */
   available_message_ids: string[];
-  /** Percentage of available bytes returned (0–100), e.g. 88.99.
-   *  100 means all results fit; <100 when per-result or total cap was hit. */
+  /** Percentage of available output bytes returned (0–100) in retrieval mode.
+   *  List mode measures archived calls represented by returned summaries. */
   coverage_pct: number;
   /** Actual results (retrieval mode). */
   results: ToolHistoryResultItem[];
@@ -504,7 +506,7 @@ const rawToolHistory: ToolHandler<ToolHistoryInput, Partial<ToolHistoryOutput> |
       totalAvailableBytes += utf8ByteLength(r.output);
     }
 
-    // Apply one exact UTF-8 byte budget across the whole response.
+    // Budget only output UTF-8 bytes. Arguments and metadata are additional.
     let totalBytes = 0;
     const capped: ToolHistoryResultItem[] = [];
     let truncated = false;
