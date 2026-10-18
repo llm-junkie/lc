@@ -926,6 +926,7 @@ LC reports at most 20 start lines but counts every occurrence.
 ### lc_apply_patch
 
 Apply multi-file edits in one call. Uses OpenCode patch format.
+Set `dry_run: true` to preview the patch without changing files.
 
 **Recommended model procedure:** Read each existing target first. For updates,
 use one bare `@@` hunk. Copy the exact lines from the file. A leading space
@@ -939,9 +940,10 @@ hunk. `Add File` does not need `@@`. Put `Move to` immediately after
 // Input
 {
   patch: string                // Full patch text (max 1 MiB)
+  dry_run?: boolean            // Default false. Validate and report without writes.
 }
 
-// Output
+// Output when dry_run is omitted or false (unchanged)
 {
   files: Array<{
     action: string             // "add" | "update" | "delete" | "move"
@@ -956,7 +958,57 @@ hunk. `Add File` does not need `@@`. Put `Move to` immediately after
   summary: string              // Human-readable summary, for example "A foo.md, D bar.txt"
   fully_applied: boolean       // true only if ALL file actions succeeded
 }
+
+// Output when dry_run is true
+{
+  dry_run: true
+  can_apply: boolean           // All file actions passed preparation against current contents
+  files: Array<{
+    action: "add" | "update" | "delete" | "move"
+    path: string
+    move_to: string | null
+    can_apply: boolean
+    hunks: Array<{ index: number; status: "valid" | "error" | "blocked" }>
+    hunks_validated: number
+    failed_hunk: number | null // One-based index of the first failed update hunk
+    hunks_omitted: number
+    lines_would_add: number
+    lines_would_remove: number
+    warnings: string[]
+    error: string | null
+  }>
+  files_omitted: number
+  truncated: boolean
+  summary: string              // "Dry run: 2/2 file actions would apply. No files changed."
+}
 ```
+
+Dry runs use the same parsing, authorization, matching, encoding checks, and
+preparation limits as an apply. They create no target directories or temporary
+output files and never enter the commit path. Preview plans are bound to preview
+mode and cannot be reused to execute writes.
+
+Malformed patches, conflicting targets, and unauthorized paths reject the
+whole call. After authorization, file errors are collected independently.
+`hunks` covers `@@` update hunks, using one-based indexes. A failed match marks
+that hunk `error` and later hunks in the same file `blocked`, because their
+search position depends on earlier matches. A file-level failure before
+matching blocks all its hunks. Other files are still checked. Add, Delete, and
+pure Move actions have empty hunk arrays. Only fully prepared file actions
+have nonzero planned line counts. A `valid` hunk does not mean its file passed
+every preparation check.
+
+The preview validates the entire plan but bounds returned details to 100 files,
+1,000 hunk entries per file, 20 warnings per file, 2,000 characters per diagnostic,
+and 256 KiB of JSON. `truncated`, `files_omitted`, and `hunks_omitted` expose
+omissions. `can_apply`, `hunks_validated`, and `failed_hunk` reflect validation
+beyond those detail limits. Preview smaller patches for complete diagnostics.
+
+Preview results omit `fully_applied`, `hunks_applied`, `lines_added`, and
+`lines_removed`. They do not contribute to the chat's file-change totals.
+`can_apply: true` means preparation succeeded at preview time. It cannot
+guarantee later writes or reserve filesystem state. Applying reruns all checks,
+and commit-time failures can still occur.
 
 **Format (patch-language filesystem paths, not JSON string literals):**
 ```
@@ -1676,7 +1728,7 @@ This table is checked against the typed guidance catalogs. Edit the catalog firs
 
 | Tool | Purpose | Help keywords | Advanced sections |
 |---|---|---|---|
-| `lc_apply_patch` | Apply coordinated file changes from one patch. | `patch syntax`, `hunk matching`, `preparation and partial writes` | `Patch syntax`, `Hunk matching`, `Preparation and partial writes` |
+| `lc_apply_patch` | Apply coordinated file changes from one patch. | `patch syntax`, `hunk matching`, `dry run`, `preparation and partial writes` | `Patch syntax`, `Hunk matching`, `Dry run`, `Preparation and partial writes` |
 | `lc_edit_file` | Replace one exact text occurrence in each target. | `input forms`, `match diagnostics`, `missing files` | `Input forms`, `Match diagnostics`, `Missing files` |
 | `lc_get_current_time` | Get the current time in an optional timezone. | `formats and timezones` | `Formats and timezones` |
 | `lc_glob_files` | Search file and directory names recursively. | `patterns and hidden names`, `excluded directories`, `completeness` | `Patterns and hidden names`, `Excluded directories`, `Completeness` |

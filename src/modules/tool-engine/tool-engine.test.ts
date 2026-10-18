@@ -1189,10 +1189,35 @@ describe('lc_apply_patch native plan contract', () => {
     await applyPatch.run({ patch: 'patch-body' }, ctx);
     assert.deepEqual(received, {
       patch: 'patch-body',
+      dry_run: false,
       allowed_roots: ['C:\\repo'],
       plan_id: 'native-plan-123',
       call_id: 'native-operation-123',
       group_id: 'native-group-123',
     });
+  });
+
+  it('accepts only boolean dry_run values and forwards preview results without applied counters', async () => {
+    assert.equal(applyPatch.input.safeParse({ patch: 'patch', dry_run: 'true' }).success, false);
+    assert.equal(applyPatch.input.safeParse({ patch: 'patch', dry_run: null }).success, false);
+    assert.equal(applyPatch.input.safeParse({ patch: 'patch', dry_run: true }).success, true);
+    const preview = {
+      dry_run: true as const, can_apply: false, files_omitted: 0, truncated: false,
+      summary: 'Dry run: 0/1 file actions would apply. No files changed.',
+      files: [{ path: 'C:/repo/a.txt', action: 'update' as const, move_to: null, can_apply: false,
+        hunks: [{ index: 1, status: 'error' as const }], hunks_validated: 0, failed_hunk: 1,
+        hunks_omitted: 0, lines_would_add: 0, lines_would_remove: 0, warnings: [], error: 'Missing context.' }],
+    };
+    const sandbox = createMockBridge({ applyPatch: async (args) => {
+      assert.equal(args.dry_run, true);
+      assert.equal(args.plan_id, 'preview-plan');
+      return preview;
+    } });
+    const ctx = { sandbox, nativePlanId: 'preview-plan', config: { allowedRoots: ['C:/repo'] },
+      identity: { operationId: 'preview-operation', groupId: 'preview-group' } } as unknown as ToolHandlerContext;
+    const result = await applyPatch.run({ patch: 'patch', dry_run: true }, ctx);
+    assert.deepEqual(result, preview);
+    assert.equal('fully_applied' in result, false);
+    assert.equal('hunks_applied' in result.files[0], false);
   });
 });

@@ -114,6 +114,7 @@ export function summarizeFileLineChanges(
 
   const root = parseToolOutput(output);
   if (!root) return undefined;
+  if (toolName === 'lc_apply_patch' && root.dry_run === true) return undefined;
   const entries = root[toolName === 'lc_apply_patch' ? 'files' : 'results'];
   if (!Array.isArray(entries)) return undefined;
 

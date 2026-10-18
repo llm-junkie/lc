@@ -17,6 +17,7 @@ const RAW_PATCH = `*** Begin Patch
 
 interface HarnessOptions {
   patch?: string;
+  dryRun?: boolean;
   admission?: PatchAdmission;
   approval?: PatchApproval;
   discovery?: ApplyPatchTargetsResult;
@@ -33,6 +34,7 @@ function makeHarness(options: HarnessOptions = {}) {
   const popupScopes: string[][] = [];
   const persistedScopes: string[][] = [];
   const preflightRoots: string[][] = [];
+  const preflightModes: boolean[] = [];
   const executedPlans: string[] = [];
   let mutated = false;
   const rawPatch = options.patch ?? RAW_PATCH;
@@ -52,6 +54,7 @@ function makeHarness(options: HarnessOptions = {}) {
   const run = () => coordinateApplyPatch({
     admission: options.admission ?? { allowed: true },
     patch: rawPatch,
+    dryRun: options.dryRun,
     initialAllowedRoots: ['C:\\workspace'],
     reserve: async () => {
       events.push('reserve');
@@ -79,8 +82,9 @@ function makeHarness(options: HarnessOptions = {}) {
       persistedScopes.push([...scopes]);
       return { ok: true, allowedRoots: ['C:\\workspace', ...scopes] };
     },
-    preflight: async (_patch, roots) => {
+    preflight: async (_patch, roots, dryRun) => {
       events.push('preflight');
+      preflightModes.push(dryRun);
       preflightRoots.push([...roots]);
       return {
         plan_id: 'native-plan-42',
@@ -108,12 +112,29 @@ function makeHarness(options: HarnessOptions = {}) {
     popupScopes,
     persistedScopes,
     preflightRoots,
+    preflightModes,
     executedPlans,
     wasMutated: () => mutated,
   };
 }
 
 describe('apply_patch coordinator acceptance', () => {
+  it('keeps exact-scope authorization before dry-run preflight', async () => {
+    const denied = makeHarness({ dryRun: true, approval: { decision: 'deny' } });
+    assert.equal((await denied.run()).status, 'rejected');
+    assert.deepEqual(denied.preflightModes, []);
+    assert.equal(denied.events.includes('execute'), false);
+    const approved = makeHarness({ dryRun: true,
+      approval: { decision: 'allow_once', grantedDirs: ['C:\\outside'] } });
+    assert.equal((await approved.run()).status, 'executed');
+    assert.deepEqual(approved.preflightModes, [true]);
+    assert.deepEqual(approved.preflightRoots, [['C:\\workspace', 'C:\\outside']]);
+    assert.ok(approved.events.indexOf('popup') < approved.events.indexOf('preflight'));
+    assert.ok(approved.events.indexOf('preflight') < approved.events.indexOf('execute'));
+    const normal = makeHarness({ approval: { decision: 'allow_once', grantedDirs: ['C:\\outside'] } });
+    await normal.run();
+    assert.deepEqual(normal.preflightModes, [false]);
+  });
   it('presents the exact canonical parent scope and denial cannot preflight or mutate', async () => {
     const harness = makeHarness({ approval: { decision: 'deny' } });
     const result = await harness.run();

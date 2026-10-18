@@ -28,7 +28,8 @@ The implementation state on 2026-10-18 is:
 
 The baseline fixed surface is 8,547 tokens. The pre-Whiteboard pilot fixture is
 6,956 tokens. The Whiteboard baseline is 7,506 tokens. The rollout fixture is
-5,698 tokens, a 24.1% reduction from that baseline. Exact values live
+5,698 tokens, a 24.1% reduction from that baseline. Patch preview support adds
+51 tokens, bringing the current fixture to 5,749. Exact values live
 in `tool-guidance-token.test.ts`. LC does not remove safety guidance to meet a
 payload target.
 
@@ -38,7 +39,8 @@ payload target.
 
 Before tiering, the Windows reference fixture used 8,547 tokens. The
 pre-Whiteboard pilot fixture used 6,956 tokens. The Whiteboard baseline used
-7,506 tokens. The rollout uses 5,698 tokens. The reference fixture uses two workspace roots. Root count
+7,506 tokens. The rollout used 5,698 tokens. With patch previews, the current
+fixture uses 5,749 tokens. The reference fixture uses two workspace roots. Root count
 changes the generated system prompt but does not change the tool payload.
 
 Token counts are not additive. Token boundaries change when strings are joined
@@ -676,7 +678,7 @@ These values are operational bounds and evaluation targets:
 | Ordinary tool description | Prefer at most 120 tokens |
 | Exceptional tool description | At most 250 tokens with justification |
 | Complete `lc_tool_help` definition | At most 220 tokens |
-| Complete system and tool payload | 5,698 tokens without a configured search provider |
+| Complete system and tool payload | 5,749 tokens without a configured search provider |
 | Basic help result | At most 400 tokens |
 | One advanced help section | At most 300 tokens |
 | Complete serialized help result | At most 16 KiB and preferably 1,000 tokens |
@@ -684,19 +686,19 @@ These values are operational bounds and evaluation targets:
 | Keywords per tool | At most 12 |
 | Name suggestions | At most 3 |
 
-The final tool payload is 5,114 tokens. The Windows prompt is 580 tokens with
+The current tool payload, including patch previews, is 5,165 tokens. The Windows prompt is 580 tokens with
 one root and 584 with two roots. The Linux fixture is 518 tokens. Active search
-providers increase the complete two-root payload to 5,784 tokens for Brave,
-5,794 for SearXNG, and 5,808 for Marginalia. These are direct full-string
+providers increase the complete two-root payload to 5,835 tokens for Brave,
+5,845 for SearXNG, and 5,859 for Marginalia. These are direct full-string
 measurements, not sums of estimated descriptions.
 
 Three description exceptions preserve information needed before a call or
 ordinary result interpretation: `lc_grep` uses 156 tokens for batch filters,
-completeness, and mode-specific result arrays; `lc_apply_patch` uses 169 for
-its input language and partial-write safety; `lc_web_research` uses up to 178
+completeness, and mode-specific result arrays; `lc_apply_patch` uses 192 for
+its input language, preview semantics, and partial-write safety; `lc_web_research` uses up to 178
 for the active provider's limitations and extra-search cost. Each has a
 250-token ceiling. Other operational descriptions stay within 120 tokens.
-The complete help definition uses 161 tokens. The cheat sheet uses 890 tokens
+The complete help definition uses 161 tokens. The cheat sheet uses 897 tokens
 within its 600–900 target. Basic help results are at most 127 tokens, and the
 largest measured advanced lookup is 402 tokens. Existing byte and lookup-count
 bounds are unchanged.
@@ -715,7 +717,7 @@ measurement covers these items:
 
 Fixed fixtures use the direct `o200k_base` encoder from `gpt-tokenizer`.
 They do not use the runtime estimator, which samples long whitespace-free runs.
-The current schema array is 2,660 tokens, or 2,220 after description removal.
+The current schema array is 2,688 tokens, or 2,227 after description removal.
 Historical measurements remain recorded values and are not remeasured by current fixtures.
 
 CI also records the schema-only payload before and after description removal.

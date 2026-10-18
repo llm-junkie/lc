@@ -1659,7 +1659,8 @@ describe('optional parameter absence encoding (Invariant 9)', () => {
     // max_matches_per_file, include_excluded_dirs, and a per-search
     // include override. Each was checked above: all six normalize null,
     // empty, and whitespace to omission.
-    assert.equal(checked, 64, 'the exhaustive optional-field inventory changed; review the new contract');
+    // lc_apply_patch.dry_run also treats absence encodings as omission.
+    assert.equal(checked, 65, 'the exhaustive optional-field inventory changed; review the new contract');
   });
 
   it('preserves empty conditional lc_edit_file flat fields when they carry meaning', () => {

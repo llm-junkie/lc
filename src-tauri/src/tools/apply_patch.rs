@@ -28,6 +28,11 @@ use tokio_util::sync::CancellationToken;
 const MAX_PATCH_BYTES: usize = 1_048_576;
 const MAX_TARGET_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_PREPARED_BYTES: usize = 64 * 1024 * 1024;
+const MAX_PREVIEW_FILES: usize = 100;
+const MAX_PREVIEW_HUNKS: usize = 1000;
+const MAX_PREVIEW_BYTES: usize = 256 * 1024;
+const MAX_PREVIEW_WARNINGS: usize = 20;
+const MAX_PREVIEW_DIAGNOSTIC_CHARS: usize = 2000;
 
 type PlanId = String;
 
@@ -35,6 +40,8 @@ type PlanId = String;
 pub struct ApplyPatchPreflightRequest {
     pub patch: String,
     pub allowed_roots: Option<Vec<String>>,
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,6 +56,8 @@ pub struct ApplyPatchRequest {
     pub plan_id: PlanId,
     pub call_id: Option<String>,
     pub group_id: Option<String>,
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -71,6 +80,45 @@ pub struct ApplyPatchResult {
     pub files: Vec<ApplyPatchFileResult>,
     pub summary: String,
     pub fully_applied: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct PatchHunkPreview {
+    index: usize,
+    status: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct PatchFilePreview {
+    path: String,
+    action: &'static str,
+    move_to: Option<String>,
+    can_apply: bool,
+    hunks: Vec<PatchHunkPreview>,
+    hunks_validated: usize,
+    failed_hunk: Option<usize>,
+    hunks_omitted: usize,
+    lines_would_add: usize,
+    lines_would_remove: usize,
+    warnings: Vec<String>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct PatchPreview {
+    dry_run: bool,
+    can_apply: bool,
+    files: Vec<PatchFilePreview>,
+    files_omitted: usize,
+    truncated: bool,
+    summary: String,
+}
+
+#[derive(Default)]
+struct PreparationTrace {
+    validated_hunks: usize,
+    failed_hunk: Option<usize>,
+    warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -528,7 +576,16 @@ fn discover_patch_targets(patch: &str) -> Result<ApplyPatchTargetsResult, ToolEr
     })
 }
 
+#[cfg(test)]
 fn build_resolved_plan(patch: &str, roots: &[PathBuf]) -> Result<ResolvedPatchPlan, ToolError> {
+    build_plan(patch, roots, false)
+}
+
+fn build_plan(
+    patch: &str,
+    roots: &[PathBuf],
+    dry_run: bool,
+) -> Result<ResolvedPatchPlan, ToolError> {
     if patch.len() > MAX_PATCH_BYTES {
         return Err(ToolError::Io(
             "Patch exceeds the 1 MiB UTF-8 limit. Split unrelated changes into smaller patches."
@@ -554,31 +611,6 @@ fn build_resolved_plan(patch: &str, roots: &[PathBuf]) -> Result<ResolvedPatchPl
             affected_paths.push(source.to_string_lossy().to_string());
         }
 
-        match hunk.hunk_type {
-            HunkType::Add => {
-                if source.exists() {
-                    // A collision, not an IO fault — `already_exists` is
-                    // what the caller needs to distinguish it from a
-                    // sandbox rejection.
-                    return Err(ToolError::AlreadyExists(format!(
-                        "add target already exists: {}",
-                        hunk.path
-                    )));
-                }
-            }
-            HunkType::Update | HunkType::Delete => {
-                let metadata = std::fs::metadata(&source).map_err(|error| {
-                    ToolError::Io(format!("source '{}' is unavailable: {}", hunk.path, error))
-                })?;
-                if !metadata.is_file() {
-                    return Err(ToolError::NotAFile(format!(
-                        "source is not a file: {}",
-                        hunk.path
-                    )));
-                }
-            }
-        }
-
         let destination = match hunk.move_path.as_deref() {
             Some(move_path) => {
                 let target = resolve_under_roots(move_path, roots)?;
@@ -595,12 +627,6 @@ fn build_resolved_plan(patch: &str, roots: &[PathBuf]) -> Result<ResolvedPatchPl
                         move_path
                     )));
                 }
-                if target.exists() {
-                    return Err(ToolError::AlreadyExists(format!(
-                        "move destination already exists: {}",
-                        move_path
-                    )));
-                }
                 if affected_set.insert(target_id) {
                     affected_paths.push(target.to_string_lossy().to_string());
                 }
@@ -608,14 +634,19 @@ fn build_resolved_plan(patch: &str, roots: &[PathBuf]) -> Result<ResolvedPatchPl
             }
             None => None,
         };
-        resolved.push(ResolvedHunk {
+        let entry = ResolvedHunk {
             hunk,
             source,
             destination,
-        });
+        };
+        // Dry runs collect per-file preparation failures after authorization.
+        if !dry_run {
+            validate_action(&entry)?;
+        }
+        resolved.push(entry);
     }
 
-    let plan_id = compute_plan_id(patch, &resolved);
+    let plan_id = compute_plan_id(patch, &resolved, dry_run);
     Ok(ResolvedPatchPlan {
         hunks: resolved,
         affected_paths,
@@ -623,8 +654,51 @@ fn build_resolved_plan(patch: &str, roots: &[PathBuf]) -> Result<ResolvedPatchPl
     })
 }
 
-fn compute_plan_id(patch: &str, hunks: &[ResolvedHunk]) -> PlanId {
+fn validate_action(resolved: &ResolvedHunk) -> Result<(), ToolError> {
+    match resolved.hunk.hunk_type {
+        HunkType::Add => {
+            if resolved.source.exists() {
+                // A collision, not an IO fault — `already_exists` is
+                // what the caller needs to distinguish it from a
+                // sandbox rejection.
+                return Err(ToolError::AlreadyExists(format!(
+                    "add target already exists: {}",
+                    resolved.hunk.path
+                )));
+            }
+        }
+        HunkType::Update | HunkType::Delete => {
+            let metadata = std::fs::metadata(&resolved.source).map_err(|error| {
+                ToolError::Io(format!(
+                    "source '{}' is unavailable: {}",
+                    resolved.hunk.path, error
+                ))
+            })?;
+            if !metadata.is_file() {
+                return Err(ToolError::NotAFile(format!(
+                    "source is not a file: {}",
+                    resolved.hunk.path
+                )));
+            }
+        }
+    }
+
+    if let Some(target) = &resolved.destination {
+        if target.exists() {
+            return Err(ToolError::AlreadyExists(format!(
+                "move destination already exists: {}",
+                resolved.hunk.move_path.as_deref().unwrap_or_default()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn compute_plan_id(patch: &str, hunks: &[ResolvedHunk], dry_run: bool) -> PlanId {
     let mut hasher = Sha256::new();
+    if dry_run {
+        hasher.update(b"dry_run\0");
+    }
     hasher.update(normalize_patch(patch).trim().as_bytes());
     for resolved in hunks {
         hasher.update([0]);
@@ -753,16 +827,28 @@ fn seek_sequence(
     })
 }
 
+#[cfg(test)]
 fn derive_new_content(
     file_path: &str,
     chunks: &[UpdateChunk],
     original: &str,
 ) -> Result<(String, Vec<String>), String> {
+    let mut trace = PreparationTrace::default();
+    let content = derive_new_content_traced(file_path, chunks, original, &mut trace)?;
+    Ok((content, trace.warnings))
+}
+
+fn derive_new_content_traced(
+    file_path: &str,
+    chunks: &[UpdateChunk],
+    original: &str,
+    trace: &mut PreparationTrace,
+) -> Result<String, String> {
     // A hunkless Update+Move is a pure rename. Return the original text
     // verbatim so mixed line endings, BOMs, and final-newline state cannot be
     // normalized merely by moving the file.
     if chunks.is_empty() {
-        return Ok((original.to_string(), Vec::new()));
+        return Ok(original.to_string());
     }
 
     let has_bom = original.starts_with('\u{feff}');
@@ -784,10 +870,10 @@ fn derive_new_content(
     }
 
     let mut replacements: Vec<(usize, usize, Vec<String>)> = Vec::new();
-    let mut warnings = Vec::new();
     let mut line_index = 0usize;
 
-    for chunk in chunks {
+    for (index, chunk) in chunks.iter().enumerate() {
+        trace.failed_hunk = Some(index + 1);
         let mut context_index = None;
         if let Some(context) = &chunk.change_context {
             let found = seek_sequence(
@@ -800,7 +886,7 @@ fn derive_new_content(
             line_index = found.index + 1;
             context_index = Some(line_index);
             if found.kind != MatchKind::Exact {
-                warnings.push(format!(
+                trace.warnings.push(format!(
                     "context in {} applied with {} match",
                     file_path,
                     found.kind.label()
@@ -815,6 +901,8 @@ fn derive_new_content(
                 context_index.unwrap_or(original_lines.len())
             };
             replacements.push((insertion, 0, chunk.new_lines.clone()));
+            trace.validated_hunks += 1;
+            trace.failed_hunk = None;
             continue;
         }
 
@@ -843,12 +931,14 @@ fn derive_new_content(
         replacements.push((found.index, chunk.old_lines.len(), new_segment));
         line_index = found.index + chunk.old_lines.len();
         if found.kind != MatchKind::Exact {
-            warnings.push(format!(
+            trace.warnings.push(format!(
                 "chunk in {} applied with {} match",
                 file_path,
                 found.kind.label()
             ));
         }
+        trace.validated_hunks += 1;
+        trace.failed_hunk = None;
     }
 
     replacements.sort_by_key(|replacement| replacement.0);
@@ -867,80 +957,216 @@ fn derive_new_content(
     if has_bom {
         content.insert(0, '\u{feff}');
     }
-    Ok((content, warnings))
+    Ok(content)
 }
 
 fn prepare_plan(plan: ResolvedPatchPlan) -> Result<Vec<PreparedAction>, ToolError> {
     let mut prepared = Vec::with_capacity(plan.hunks.len());
     let mut prepared_bytes = 0usize;
-
     for resolved in plan.hunks {
-        match resolved.hunk.hunk_type {
-            HunkType::Add => {
-                let content = resolved.hunk.content.clone().unwrap_or_default();
-                add_prepared_bytes(&mut prepared_bytes, content.len())?;
-                prepared.push(PreparedAction::Add {
-                    hunk: resolved.hunk,
-                    target: resolved.source,
-                    content,
-                });
-            }
-            HunkType::Delete => {
-                let original = read_bounded(&resolved.source, &resolved.hunk.path)?;
-                add_prepared_bytes(&mut prepared_bytes, original.len())?;
-                prepared.push(PreparedAction::Delete {
-                    hunk: resolved.hunk,
-                    target: resolved.source,
-                    original,
-                });
-            }
-            HunkType::Update => {
-                let original = read_bounded(&resolved.source, &resolved.hunk.path)?;
-                // Same text-admission policy as `lc_read_file` and
-                // `lc_edit_file`. `from_utf8` alone accepts a NUL byte.
-                // BOM-marked UTF-16 gets its own message: patching would
-                // rewrite the file as UTF-8 and change its encoding.
-                if let Some(kind) = super::fs_ops::utf16_bom(&original) {
-                    return Err(ToolError::Io(format!(
-                        "update source '{}' is {} behind a byte-order mark: lc_read_file \
-                         transcodes it for reading, but patching would rewrite the file as \
-                         UTF-8 and change its encoding. Convert the file to UTF-8 first.",
-                        resolved.hunk.path,
-                        kind.label()
-                    )));
-                }
-                if let Some(reason) = super::fs_ops::classify_text(&original) {
-                    return Err(ToolError::Io(format!(
-                        "update source '{}' is not editable text. {}",
-                        resolved.hunk.path,
-                        reason.remedy()
-                    )));
-                }
-                let original_text = std::str::from_utf8(&original).map_err(|error| {
-                    ToolError::Io(format!(
-                        "update source is not valid UTF-8 '{}': {}",
-                        resolved.hunk.path, error
-                    ))
-                })?;
-                let (new_content, warnings) =
-                    derive_new_content(&resolved.hunk.path, &resolved.hunk.chunks, original_text)
-                        .map_err(ToolError::Io)?;
-                add_prepared_bytes(
-                    &mut prepared_bytes,
-                    original.len().saturating_add(new_content.len()),
-                )?;
-                prepared.push(PreparedAction::Update {
-                    hunk: resolved.hunk,
-                    target: resolved.source,
-                    destination: resolved.destination,
-                    original,
-                    new_content,
-                    warnings,
-                });
-            }
-        }
+        prepared.push(prepare_action(
+            resolved,
+            &mut prepared_bytes,
+            &mut PreparationTrace::default(),
+        )?);
     }
     Ok(prepared)
+}
+
+fn prepare_action(
+    resolved: ResolvedHunk,
+    prepared_bytes: &mut usize,
+    trace: &mut PreparationTrace,
+) -> Result<PreparedAction, ToolError> {
+    validate_action(&resolved)?;
+    match resolved.hunk.hunk_type {
+        HunkType::Add => {
+            let content = resolved.hunk.content.clone().unwrap_or_default();
+            add_prepared_bytes(prepared_bytes, content.len())?;
+            Ok(PreparedAction::Add {
+                hunk: resolved.hunk,
+                target: resolved.source,
+                content,
+            })
+        }
+        HunkType::Delete => {
+            let original = read_bounded(&resolved.source, &resolved.hunk.path)?;
+            add_prepared_bytes(prepared_bytes, original.len())?;
+            Ok(PreparedAction::Delete {
+                hunk: resolved.hunk,
+                target: resolved.source,
+                original,
+            })
+        }
+        HunkType::Update => {
+            let original = read_bounded(&resolved.source, &resolved.hunk.path)?;
+            // Same text-admission policy as `lc_read_file` and
+            // `lc_edit_file`. `from_utf8` alone accepts a NUL byte.
+            // BOM-marked UTF-16 gets its own message: patching would
+            // rewrite the file as UTF-8 and change its encoding.
+            if let Some(kind) = super::fs_ops::utf16_bom(&original) {
+                return Err(ToolError::Io(format!(
+                    "update source '{}' is {} behind a byte-order mark: lc_read_file \
+                         transcodes it for reading, but patching would rewrite the file as \
+                         UTF-8 and change its encoding. Convert the file to UTF-8 first.",
+                    resolved.hunk.path,
+                    kind.label()
+                )));
+            }
+            if let Some(reason) = super::fs_ops::classify_text(&original) {
+                return Err(ToolError::Io(format!(
+                    "update source '{}' is not editable text. {}",
+                    resolved.hunk.path,
+                    reason.remedy()
+                )));
+            }
+            let original_text = std::str::from_utf8(&original).map_err(|error| {
+                ToolError::Io(format!(
+                    "update source is not valid UTF-8 '{}': {}",
+                    resolved.hunk.path, error
+                ))
+            })?;
+            let new_content = derive_new_content_traced(
+                &resolved.hunk.path,
+                &resolved.hunk.chunks,
+                original_text,
+                trace,
+            )
+            .map_err(ToolError::Io)?;
+            add_prepared_bytes(
+                prepared_bytes,
+                original.len().saturating_add(new_content.len()),
+            )?;
+            Ok(PreparedAction::Update {
+                hunk: resolved.hunk,
+                target: resolved.source,
+                destination: resolved.destination,
+                original,
+                new_content,
+                warnings: trace.warnings.clone(),
+            })
+        }
+    }
+}
+
+// Preview uses the same preparation and memory accounting as execution, but
+// drops each prepared action instead of passing it to a commit function.
+fn preview_plan(plan: ResolvedPatchPlan, cancel: &CancellationToken) -> Result<ToolOk, ToolError> {
+    let total_files = plan.hunks.len();
+    let mut preview = PatchPreview {
+        dry_run: true,
+        can_apply: true,
+        files: Vec::new(),
+        files_omitted: 0,
+        truncated: false,
+        summary: String::new(),
+    };
+    let mut prepared_bytes = 0;
+    let mut valid_files = 0;
+    for resolved in plan.hunks {
+        if cancel.is_cancelled() {
+            return Err(ToolError::Aborted);
+        }
+        let hunk = resolved.hunk.clone();
+        let mut trace = PreparationTrace::default();
+        let prepared = prepare_action(resolved, &mut prepared_bytes, &mut trace);
+        let can_apply = prepared.is_ok();
+        preview.can_apply &= can_apply;
+        valid_files += usize::from(can_apply);
+        if preview.files.len() == MAX_PREVIEW_FILES {
+            continue;
+        }
+
+        let (lines_would_add, lines_would_remove) = match &prepared {
+            Ok(PreparedAction::Add { content, .. }) => (count_text_lines(content), 0),
+            Ok(PreparedAction::Delete { original, .. }) => (0, count_text_lines_bytes(original)),
+            Ok(PreparedAction::Update { .. }) => {
+                (hunk_lines_added(&hunk), hunk_lines_removed(&hunk))
+            }
+            Err(_) => (0, 0),
+        };
+        let hunks = (1..=hunk.chunks.len())
+            .take(MAX_PREVIEW_HUNKS)
+            .map(|index| PatchHunkPreview {
+                index,
+                status: if index <= trace.validated_hunks {
+                    "valid"
+                } else if trace.failed_hunk == Some(index) {
+                    "error"
+                } else {
+                    "blocked"
+                },
+            })
+            .collect();
+        let hunks_omitted = hunk.chunks.len().saturating_sub(MAX_PREVIEW_HUNKS);
+        preview.truncated |= hunks_omitted > 0 || trace.warnings.len() > MAX_PREVIEW_WARNINGS;
+        let warnings = trace
+            .warnings
+            .into_iter()
+            .take(MAX_PREVIEW_WARNINGS)
+            .map(|warning| {
+                preview_message(
+                    &warning.replace("applied with", "matched with"),
+                    &mut preview.truncated,
+                )
+            })
+            .collect();
+        let error = prepared
+            .err()
+            .map(|error| preview_message(&error.to_string(), &mut preview.truncated));
+        preview.files.push(PatchFilePreview {
+            path: hunk.path,
+            action: if hunk.move_path.is_some() {
+                "move"
+            } else {
+                hunk.hunk_type.label()
+            },
+            move_to: hunk.move_path,
+            can_apply,
+            hunks,
+            hunks_validated: trace.validated_hunks,
+            failed_hunk: trace.failed_hunk,
+            hunks_omitted,
+            lines_would_add,
+            lines_would_remove,
+            warnings,
+            error,
+        });
+    }
+    if cancel.is_cancelled() {
+        return Err(ToolError::Aborted);
+    }
+    preview.summary =
+        format!("Dry run: {valid_files}/{total_files} file actions would apply. No files changed.");
+    loop {
+        preview.files_omitted = total_files - preview.files.len();
+        preview.truncated |= preview.files_omitted > 0;
+        let value =
+            serde_json::to_value(&preview).map_err(|error| ToolError::Io(error.to_string()))?;
+        if serde_json::to_vec(&value)
+            .map_err(|error| ToolError::Io(error.to_string()))?
+            .len()
+            <= MAX_PREVIEW_BYTES
+        {
+            return Ok(value);
+        }
+        preview.files.pop();
+    }
+}
+
+fn preview_message(message: &str, truncated: &mut bool) -> String {
+    let mut chars = message.chars();
+    let mut result: String = chars.by_ref().take(MAX_PREVIEW_DIAGNOSTIC_CHARS).collect();
+    if chars.next().is_some() {
+        const SUFFIX: &str = "… [truncated]";
+        *truncated = true;
+        result = result
+            .chars()
+            .take(MAX_PREVIEW_DIAGNOSTIC_CHARS - SUFFIX.chars().count())
+            .collect();
+        result.push_str(SUFFIX);
+    }
+    result
 }
 
 fn read_bounded(path: &Path, display_path: &str) -> Result<Vec<u8>, ToolError> {
@@ -1284,7 +1510,7 @@ pub fn tool_apply_patch_preflight(
     req: ApplyPatchPreflightRequest,
 ) -> Result<ApplyPatchPreflightResult, ToolError> {
     let roots = merged_roots(req.allowed_roots.as_deref().unwrap_or(&[]));
-    let plan = build_resolved_plan(&req.patch, &roots)?;
+    let plan = build_plan(&req.patch, &roots, req.dry_run)?;
     let actions = plan
         .hunks
         .iter()
@@ -1341,7 +1567,7 @@ fn execute_request_cancellable(
         ));
     }
     let roots = merged_roots(req.allowed_roots.as_deref().unwrap_or(&[]));
-    let initial_plan = build_resolved_plan(&req.patch, &roots)?;
+    let initial_plan = build_plan(&req.patch, &roots, req.dry_run)?;
     if cancel_token.is_cancelled() {
         return Err(ToolError::Aborted);
     }
@@ -1370,7 +1596,7 @@ fn execute_request_cancellable(
     if cancel_token.is_cancelled() {
         return Err(ToolError::Aborted);
     }
-    let locked_plan = build_resolved_plan(&req.patch, &roots)?;
+    let locked_plan = build_plan(&req.patch, &roots, req.dry_run)?;
     if locked_plan.plan_id != initial_plan.plan_id
         || locked_plan.affected_paths != initial_plan.affected_paths
     {
@@ -1380,6 +1606,9 @@ fn execute_request_cancellable(
         ));
     }
 
+    if req.dry_run {
+        return preview_plan(locked_plan, cancel_token);
+    }
     let prepared = prepare_plan(locked_plan)?;
     if cancel_token.is_cancelled() {
         return Err(ToolError::Aborted);
@@ -1455,6 +1684,344 @@ mod tests {
             change_context: context.map(str::to_string),
             is_end_of_file: false,
         }
+    }
+
+    fn request(temp: &TempDir, patch: &str, dry_run: bool) -> ApplyPatchRequest {
+        let preflight = tool_apply_patch_preflight(ApplyPatchPreflightRequest {
+            patch: patch.into(),
+            allowed_roots: Some(temp.root_strings()),
+            dry_run,
+        })
+        .unwrap();
+        ApplyPatchRequest {
+            patch: patch.into(),
+            allowed_roots: Some(temp.root_strings()),
+            plan_id: preflight.plan_id,
+            call_id: None,
+            group_id: None,
+            dry_run,
+        }
+    }
+
+    fn snapshot(
+        root: &Path,
+    ) -> std::collections::BTreeMap<PathBuf, (bool, Vec<u8>, std::time::SystemTime)> {
+        fn visit(
+            path: &Path,
+            entries: &mut std::collections::BTreeMap<
+                PathBuf,
+                (bool, Vec<u8>, std::time::SystemTime),
+            >,
+        ) {
+            let metadata = std::fs::metadata(path).unwrap();
+            entries.insert(
+                path.to_path_buf(),
+                (
+                    metadata.is_dir(),
+                    if metadata.is_dir() {
+                        Vec::new()
+                    } else {
+                        std::fs::read(path).unwrap()
+                    },
+                    metadata.modified().unwrap(),
+                ),
+            );
+            if metadata.is_dir() {
+                for child in std::fs::read_dir(path).unwrap() {
+                    visit(&child.unwrap().path(), entries);
+                }
+            }
+        }
+        let mut entries = std::collections::BTreeMap::new();
+        visit(root, &mut entries);
+        entries
+    }
+
+    #[test]
+    fn dry_run_previews_all_actions_without_changing_bytes_paths_or_modified_times() {
+        let temp = TempDir::new();
+        let added = temp.path().join("missing-parent/new.txt");
+        let updated = temp.path().join("updated.txt");
+        let moved = temp.path().join("move.txt");
+        let destination = temp.path().join("missing-parent/moved.txt");
+        let renamed = temp.path().join("rename.txt");
+        let rename_destination = temp.path().join("renamed.txt");
+        let deleted = temp.path().join("delete.txt");
+        std::fs::write(&updated, "\u{feff}keep  \r\nold\r\nlast").unwrap();
+        std::fs::write(&moved, "old\n").unwrap();
+        std::fs::write(&renamed, "\u{feff}mixed\r\nending\nno-final").unwrap();
+        std::fs::write(&deleted, "gone\n").unwrap();
+        let patch = format!("*** Begin Patch\n*** Add File: {}\n+created\n*** Update File: {}\n@@\n keep\n-old\n+new\n@@\n-last\n+end\n*** End of File\n*** Update File: {}\n*** Move to: {}\n@@\n-old\n+new\n*** Update File: {}\n*** Move to: {}\n*** Delete File: {}\n*** End Patch",
+            added.display(), updated.display(), moved.display(), destination.display(),
+            renamed.display(), rename_destination.display(), deleted.display());
+        let before = snapshot(temp.path());
+        let preview = execute_request(request(&temp, &patch, true)).unwrap();
+        assert_eq!(snapshot(temp.path()), before);
+        assert_eq!(preview["dry_run"], true);
+        assert_eq!(preview["can_apply"], true);
+        assert!(preview.get("fully_applied").is_none());
+        assert_eq!(preview["files"][1]["hunks_validated"], 2);
+        assert_eq!(preview["files"][1]["hunks"][1]["status"], "valid");
+        assert!(preview["files"][1]["warnings"][0]
+            .as_str()
+            .unwrap()
+            .contains("matched with rstrip"));
+        assert_eq!(preview["files"][3]["hunks"], serde_json::json!([]));
+        assert_eq!(preview["truncated"], false);
+
+        let applied = execute_request(request(&temp, &patch, false)).unwrap();
+        assert_eq!(applied["fully_applied"], true);
+        assert!(applied.get("dry_run").is_none());
+        for (planned, actual) in preview["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(applied["files"].as_array().unwrap())
+        {
+            assert_eq!(planned["lines_would_add"], actual["lines_added"]);
+            assert_eq!(planned["lines_would_remove"], actual["lines_removed"]);
+            assert!(planned.get("hunks_applied").is_none());
+        }
+        assert_eq!(
+            std::fs::read_to_string(updated).unwrap(),
+            "\u{feff}keep  \r\nnew\r\nend"
+        );
+        assert_eq!(
+            std::fs::read_to_string(rename_destination).unwrap(),
+            "\u{feff}mixed\r\nending\nno-final"
+        );
+        assert!(!moved.exists() && !renamed.exists() && !deleted.exists());
+    }
+
+    #[test]
+    fn dry_run_collects_file_failures_and_marks_dependent_hunks_blocked() {
+        let temp = TempDir::new();
+        let bad = temp.path().join("bad.txt");
+        let good = temp.path().join("good.txt");
+        let occupied = temp.path().join("occupied.txt");
+        let moving = temp.path().join("moving.txt");
+        let utf16 = temp.path().join("utf16.txt");
+        let binary = temp.path().join("binary.txt");
+        for path in [&bad, &good, &occupied, &moving] {
+            std::fs::write(path, "first\nlast\n").unwrap();
+        }
+        std::fs::write(&utf16, [0xff, 0xfe, b'a', 0]).unwrap();
+        std::fs::write(&binary, b"a\0b").unwrap();
+        let patch = format!("*** Begin Patch\n*** Update File: {}\n@@\n-first\n+changed\n@@\n-missing\n+changed\n@@\n-last\n+changed\n*** Update File: {}\n@@\n-first\n+changed\n*** Add File: {}\n+collision\n*** Delete File: {}\n*** Update File: {}\n*** Move to: {}\n*** Update File: {}\n@@\n-a\n+b\n*** Update File: {}\n@@\n-a\n+b\n*** End Patch",
+            bad.display(), good.display(), occupied.display(), temp.path().join("missing.txt").display(),
+            moving.display(), temp.path().join("destination.txt").display(), utf16.display(), binary.display());
+        std::fs::write(temp.path().join("destination.txt"), "occupied").unwrap();
+        let before = snapshot(temp.path());
+        let result = execute_request(request(&temp, &patch, true)).unwrap();
+        assert_eq!(snapshot(temp.path()), before);
+        assert_eq!(result["can_apply"], false);
+        let files = result["files"].as_array().unwrap();
+        assert_eq!(files.len(), 7);
+        assert_eq!(
+            files[0]["hunks"],
+            serde_json::json!([
+                {"index":1,"status":"valid"}, {"index":2,"status":"error"}, {"index":3,"status":"blocked"}
+            ])
+        );
+        assert_eq!(files[0]["failed_hunk"], 2);
+        assert_eq!(files[0]["lines_would_add"], 0);
+        assert_eq!(files[1]["can_apply"], true);
+        for index in [0, 2, 3, 4, 5, 6] {
+            assert!(files[index]["error"].as_str().is_some());
+        }
+        assert!(files[2]["error"]
+            .as_str()
+            .unwrap()
+            .contains("already exists"));
+        assert!(files[4]["error"]
+            .as_str()
+            .unwrap()
+            .contains("destination already exists"));
+        assert_eq!(files[5]["hunks"][0]["status"], "blocked");
+        assert!(files[5]["error"].as_str().unwrap().contains("utf-16le"));
+    }
+
+    #[test]
+    fn preview_plan_cannot_be_reused_for_apply_and_current_content_is_rechecked() {
+        let temp = TempDir::new();
+        let target = temp.path().join("source.txt");
+        std::fs::write(&target, "old\n").unwrap();
+        let patch = format!(
+            "*** Begin Patch\n*** Update File: {}\n@@\n-old\n+new\n*** End Patch",
+            target.display()
+        );
+        let mut wrong_mode = request(&temp, &patch, true);
+        wrong_mode.dry_run = false;
+        assert!(execute_request(wrong_mode)
+            .unwrap_err()
+            .to_string()
+            .contains("plan_id mismatch"));
+        let pending = request(&temp, &patch, true);
+        std::fs::write(&target, "changed\n").unwrap();
+        assert_eq!(execute_request(pending).unwrap()["can_apply"], false);
+        assert!(execute_request(request(&temp, &patch, false)).is_err());
+        assert_eq!(std::fs::read_to_string(target).unwrap(), "changed\n");
+    }
+
+    #[test]
+    fn dry_run_still_requires_authorized_roots_and_valid_syntax() {
+        let temp = TempDir::new();
+        let other = TempDir::new();
+        let patch = format!(
+            "*** Begin Patch\n*** Add File: {}\n+new\n*** End Patch",
+            other.path().join("outside.txt").display()
+        );
+        assert!(tool_apply_patch_preflight(ApplyPatchPreflightRequest {
+            patch,
+            allowed_roots: Some(temp.root_strings()),
+            dry_run: true,
+        })
+        .is_err());
+        assert!(tool_apply_patch_preflight(ApplyPatchPreflightRequest {
+            patch: "*** Begin Patch\ninvalid\n*** End Patch".into(),
+            allowed_roots: Some(temp.root_strings()),
+            dry_run: true,
+        })
+        .is_err());
+        assert_eq!(std::fs::read_dir(other.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn cancelled_dry_run_never_changes_targets() {
+        let temp = TempDir::new();
+        let patch = format!(
+            "*** Begin Patch\n*** Add File: {}\n+new\n*** End Patch",
+            temp.path().join("new.txt").display()
+        );
+        let pending = request(&temp, &patch, true);
+        let before = snapshot(temp.path());
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        assert!(matches!(
+            execute_request_cancellable(pending, &cancel),
+            Err(ToolError::Aborted)
+        ));
+        assert!(matches!(
+            preview_plan(build_plan(&patch, &temp.roots(), true).unwrap(), &cancel),
+            Err(ToolError::Aborted)
+        ));
+        assert_eq!(snapshot(temp.path()), before);
+    }
+
+    #[test]
+    fn dry_run_enforces_target_and_cumulative_preparation_limits() {
+        let temp = TempDir::new();
+        let mut patch = "*** Begin Patch\n".to_string();
+        for index in 0..3 {
+            let path = temp.path().join(format!("large-{index}"));
+            std::fs::File::create(&path)
+                .unwrap()
+                .set_len(24 * 1024 * 1024)
+                .unwrap();
+            patch.push_str(&format!("*** Delete File: {}\n", path.display()));
+        }
+        let oversized = temp.path().join("oversized");
+        std::fs::File::create(&oversized)
+            .unwrap()
+            .set_len(MAX_TARGET_BYTES + 1)
+            .unwrap();
+        patch.push_str(&format!(
+            "*** Delete File: {}\n*** End Patch",
+            oversized.display()
+        ));
+        let result = execute_request(request(&temp, &patch, true)).unwrap();
+        assert_eq!(result["can_apply"], false);
+        assert_eq!(result["files"][0]["can_apply"], true);
+        assert_eq!(result["files"][1]["can_apply"], true);
+        assert!(result["files"][2]["error"]
+            .as_str()
+            .unwrap()
+            .contains("64 MiB"));
+        assert!(result["files"][3]["error"]
+            .as_str()
+            .unwrap()
+            .contains("32 MiB"));
+        assert!(execute_request(request(&temp, &patch, false)).is_err());
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 4);
+    }
+
+    #[test]
+    fn preview_limits_details_but_validates_omitted_files_and_hunks() {
+        let temp = TempDir::new();
+        let source = temp.path().join("source");
+        std::fs::write(&source, "").unwrap();
+        let mut patch = format!("*** Begin Patch\n*** Update File: {}\n", source.display());
+        for _ in 0..MAX_PREVIEW_HUNKS + 1 {
+            patch.push_str("@@\n+x\n");
+        }
+        for index in 0..MAX_PREVIEW_FILES {
+            patch.push_str(&format!(
+                "*** Add File: {}\n+x\n",
+                temp.path().join(format!("add-{index}")).display()
+            ));
+        }
+        patch.push_str(&format!(
+            "*** Delete File: {}\n*** End Patch",
+            temp.path().join("missing").display()
+        ));
+        let before = snapshot(temp.path());
+        let result = execute_request(request(&temp, &patch, true)).unwrap();
+        assert_eq!(result["can_apply"], false);
+        assert_eq!(result["truncated"], true);
+        assert_eq!(result["files_omitted"], 2);
+        assert_eq!(result["files"][0]["hunks_omitted"], 1);
+        assert_eq!(result["files"][0]["hunks_validated"], MAX_PREVIEW_HUNKS + 1);
+        assert!(serde_json::to_vec(&result).unwrap().len() <= MAX_PREVIEW_BYTES);
+        assert_eq!(snapshot(temp.path()), before);
+    }
+
+    #[test]
+    fn omitted_dry_run_request_flag_preserves_apply_behavior() {
+        let request: ApplyPatchRequest = serde_json::from_value(serde_json::json!({
+            "patch":"unused", "plan_id":"unused"
+        }))
+        .unwrap();
+        assert!(!request.dry_run);
+        let preflight: ApplyPatchPreflightRequest =
+            serde_json::from_value(serde_json::json!({"patch":"unused"})).unwrap();
+        assert!(!preflight.dry_run);
+    }
+
+    #[test]
+    fn preview_byte_and_diagnostic_caps_preserve_validation_outcomes() {
+        let temp = TempDir::new();
+        let mut patch = "*** Begin Patch\n".to_string();
+        for index in 0..12 {
+            let source = temp.path().join(format!("source-{index}"));
+            std::fs::write(&source, "").unwrap();
+            patch.push_str(&format!("*** Update File: {}\n", source.display()));
+            for _ in 0..MAX_PREVIEW_HUNKS {
+                patch.push_str("@@\n+x\n");
+            }
+        }
+        patch.push_str("*** End Patch");
+        let before = snapshot(temp.path());
+        let result = execute_request(request(&temp, &patch, true)).unwrap();
+        assert_eq!(result["can_apply"], true);
+        assert_eq!(result["truncated"], true);
+        assert!(result["files_omitted"].as_u64().unwrap() > 0);
+        assert!(serde_json::to_vec(&result).unwrap().len() <= MAX_PREVIEW_BYTES);
+        assert_eq!(snapshot(temp.path()), before);
+
+        let source = temp.path().join("source-0");
+        let patch = format!(
+            "*** Begin Patch\n*** Update File: {}\n@@\n-{}\n+new\n*** End Patch",
+            source.display(),
+            "字".repeat(MAX_PREVIEW_DIAGNOSTIC_CHARS * 2)
+        );
+        let result = execute_request(request(&temp, &patch, true)).unwrap();
+        assert_eq!(result["can_apply"], false);
+        assert_eq!(result["truncated"], true);
+        assert_eq!(result["files"][0]["failed_hunk"], 1);
+        let error = result["files"][0]["error"].as_str().unwrap();
+        assert_eq!(error.chars().count(), MAX_PREVIEW_DIAGNOSTIC_CHARS);
+        assert!(error.ends_with("[truncated]"));
+        assert_eq!(snapshot(temp.path()), before);
     }
 
     #[test]
@@ -1583,6 +2150,7 @@ mod tests {
         );
         assert!(discover_patch_targets(&patch).is_ok());
         assert!(tool_apply_patch_preflight(ApplyPatchPreflightRequest {
+            dry_run: false,
             patch,
             allowed_roots: Some(Vec::new()),
         })
@@ -1949,6 +2517,7 @@ mod tests {
             second.display()
         );
         let preflight = tool_apply_patch_preflight(ApplyPatchPreflightRequest {
+            dry_run: false,
             patch: patch.clone(),
             allowed_roots: Some(directory.root_strings()),
         })
@@ -1959,6 +2528,7 @@ mod tests {
         let call_id = format!("test-patch-abort-{:016x}", rand::random::<u64>());
         let group_id = format!("test-patch-group-{:016x}", rand::random::<u64>());
         let task = tokio::spawn(tool_apply_patch(ApplyPatchRequest {
+            dry_run: false,
             patch,
             allowed_roots: Some(directory.root_strings()),
             plan_id: preflight.plan_id,
@@ -2015,6 +2585,7 @@ mod tests {
             target.display()
         );
         let result = execute_request(ApplyPatchRequest {
+            dry_run: false,
             patch,
             allowed_roots: Some(directory.root_strings()),
             plan_id: "wrong-plan".into(),
@@ -2049,12 +2620,14 @@ mod tests {
         // Take the real plan id from preflight, so the refusal under
         // test is the encoding guard and not the plan-id check.
         let plan = tool_apply_patch_preflight(ApplyPatchPreflightRequest {
+            dry_run: false,
             patch: patch.clone(),
             allowed_roots: Some(vec![root.to_string_lossy().to_string()]),
         })
         .expect("preflight resolves the target");
 
         let error = tool_apply_patch(ApplyPatchRequest {
+            dry_run: false,
             patch,
             allowed_roots: Some(vec![root.to_string_lossy().to_string()]),
             plan_id: plan.plan_id,

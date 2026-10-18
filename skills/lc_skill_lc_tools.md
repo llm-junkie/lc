@@ -46,9 +46,10 @@ lc_stat → lc_glob_files or lc_grep → focused reader → mutation → verific
 - Use `lc_edit_file` for one exact replacement. Use `lc_write_file` for complete content.
 - Use `lc_apply_patch` for related changes across files.
 
-Read a mutable target before you change it. Preserve the SHA-256 value when a
-later write supports `expected_sha256`. After a patch, inspect `fully_applied`
-and each file result. Never broaden an approval scope beyond the requested
+Read targets before changing them. Preserve SHA-256 for writes with `expected_sha256`.
+Preview patches with `dry_run=true`. Inspect `can_apply` for previews or
+`fully_applied` after applying, plus each file result.
+Never broaden an approval scope beyond the requested
 canonical directory.
 
 <!-- lc-tools-section:shell -->

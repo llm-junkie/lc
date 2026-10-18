@@ -516,6 +516,7 @@ export interface AnalyzeImagesResult {
 
 export interface ApplyPatchArgs {
   patch: string;
+  dry_run?: boolean;
   allowed_roots: string[];
   /** Native preflight plan ID — required and revalidated before mutation. */
   plan_id: string;
@@ -535,16 +536,42 @@ export interface ApplyPatchFileResult {
   error?: string;
 }
 
-export interface ApplyPatchResult {
+export interface AppliedPatchResult {
+  dry_run?: false;
   files: ApplyPatchFileResult[];
   summary: string;
   fully_applied: boolean;
 }
 
+export interface ApplyPatchPreview {
+  dry_run: true;
+  can_apply: boolean;
+  files: Array<{
+    path: string;
+    action: 'add' | 'update' | 'delete' | 'move';
+    move_to: string | null;
+    can_apply: boolean;
+    hunks: Array<{ index: number; status: 'valid' | 'error' | 'blocked' }>;
+    hunks_validated: number;
+    failed_hunk: number | null;
+    hunks_omitted: number;
+    lines_would_add: number;
+    lines_would_remove: number;
+    warnings: string[];
+    error: string | null;
+  }>;
+  files_omitted: number;
+  truncated: boolean;
+  summary: string;
+}
+
+export type ApplyPatchResult = AppliedPatchResult | ApplyPatchPreview;
+
 // ── apply_patch preflight ──────────────────────────────────────────
 
 export interface ApplyPatchPreflightArgs {
   patch: string;
+  dry_run?: boolean;
   allowed_roots: string[];
 }
 

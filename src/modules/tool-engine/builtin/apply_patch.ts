@@ -1,9 +1,11 @@
 import { APPLY_PATCH_GUIDANCE } from '../tool-guidance.ts';
 import { z } from 'zod';
 import type { ToolHandler } from '../types';
+import type { ApplyPatchPreview } from '../sandbox-bridge';
 
 
 const PATCH_PARAMETER_DESCRIPTION = 'Start with *** Begin Patch. End with *** End Patch.';
+const DRY_RUN_DESCRIPTION = 'Validate without changing files. Default false. Inspect can_apply and per-file hunk results.';
 
 export const APPLY_PATCH_INPUT_MESSAGES = Object.freeze({
   required: 'patch must contain text. Send one complete patch from *** Begin Patch through *** End Patch.',
@@ -15,11 +17,13 @@ const schema = z.object({
     .min(1, APPLY_PATCH_INPUT_MESSAGES.required)
     .max(1_048_576, APPLY_PATCH_INPUT_MESSAGES.maximum)
     .describe(PATCH_PARAMETER_DESCRIPTION),
+  dry_run: z.boolean().optional().describe(DRY_RUN_DESCRIPTION),
 }).strict();
 
 type Input = z.infer<typeof schema>;
 
-export interface ApplyPatchOutput {
+export interface AppliedPatchOutput {
+  dry_run?: false;
   files: Array<{
     path: string;
     action: 'add' | 'update' | 'delete' | 'move';
@@ -34,6 +38,8 @@ export interface ApplyPatchOutput {
   fully_applied: boolean;
 }
 
+export type ApplyPatchOutput = AppliedPatchOutput | ApplyPatchPreview;
+
 export const applyPatch: ToolHandler<Input, ApplyPatchOutput> = {
   name: 'lc_apply_patch',
   description: APPLY_PATCH_GUIDANCE.essential,
@@ -46,11 +52,13 @@ export const applyPatch: ToolHandler<Input, ApplyPatchOutput> = {
     }
     const result = await ctx.sandbox.applyPatch({
       patch: input.patch,
+      dry_run: input.dry_run ?? false,
       allowed_roots: ctx.config.allowedRoots,
       plan_id: ctx.nativePlanId,
       call_id: ctx.identity.operationId,
       group_id: ctx.identity.groupId,
     });
+    if (result.dry_run === true) return result;
     return {
       ...result,
       files: result.files.map((file) => ({
@@ -75,6 +83,7 @@ const CACHED_SCHEMA = {
       maxLength: 1_048_576,
       description: PATCH_PARAMETER_DESCRIPTION,
     },
+    dry_run: { type: 'boolean' as const, description: DRY_RUN_DESCRIPTION },
   },
   required: ['patch'],
   additionalProperties: false as const,

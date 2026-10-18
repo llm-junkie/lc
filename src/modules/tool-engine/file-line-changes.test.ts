@@ -13,6 +13,16 @@ import {
 } from './tool-result-content.ts';
 
 describe('file line changes', () => {
+  it('never shows a mutation badge for a patch preview', () => {
+    for (const action of ['add', 'update', 'move', 'delete']) {
+      assert.equal(summarizeFileLineChanges('lc_apply_patch', JSON.stringify({
+        dry_run: true, can_apply: true,
+        files: [{ path: 'src/a.ts', action, can_apply: true, error: null,
+          lines_would_add: 1, lines_would_remove: 1 }],
+      })), undefined);
+    }
+  });
+
   it('summarizes successful mutation results with their change type', () => {
     const summary = summarizeFileLineChanges('lc_apply_patch', JSON.stringify({
       files: [

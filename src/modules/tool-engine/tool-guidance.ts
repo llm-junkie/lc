@@ -634,11 +634,12 @@ export const APPLY_PATCH_GUIDANCE = operationalCatalog('lc_apply_patch',
   'Keep replacement lines in the same hunk. A blank context line still needs its leading space.\n' +
   '*** Begin Patch\n*** Update File: C:/work/app.txt\n@@\n-old\n+new\n*** End Patch\n' +
   'Add and Move never overwrite destinations. Call help for their syntax. ' +
-  'Inspect fully_applied and every files entry. A late failure can leave earlier files changed. ' +
+  'Set dry_run=true to validate without writes. Inspect can_apply and every files entry in a preview. ' +
+  'After applying, inspect fully_applied and every files entry. A late failure can leave earlier files changed. ' +
   'Read affected files again before retrying.',
   'Prepare one patch with Begin Patch and End Patch markers. Use exact lines copied from each file. ' +
   'Deterministic preparation failures occur before writes. Later write failures or cancellation can preserve an applied prefix. ' +
-  'This tool has no dry_run option.',
+  'dry_run defaults to false. A preview uses the same authorization and preparation checks. It does not reserve a future successful apply.',
   [
     { title: 'Patch syntax', aliases: ['syntax', 'add', 'move', 'delete'], guidance:
       'Add File content follows its header directly. Prefix every added line with +. Add File does not use @@. ' +
@@ -650,11 +651,19 @@ export const APPLY_PATCH_GUIDANCE = operationalCatalog('lc_apply_patch',
     { title: 'Hunk matching', aliases: ['context', 'whitespace', 'fallback'], guidance:
       'Use exact file lines when possible. Keep the old and new lines for one replacement in the same @@ hunk. ' +
       'A fallback match can succeed with a warning. Inspect each warning before treating the patch as exact.' },
-    { title: 'Preparation and partial writes', aliases: ['preflight', 'fully applied', 'retry', 'dry run'], guidance:
+    { title: 'Dry run', aliases: ['dry_run', 'preview', 'can apply'], guidance:
+      'Set dry_run=true to validate without changing files or creating target directories. ' +
+      'Inspect can_apply and each file error. Update hunks report valid, error, or blocked with one-based indexes. ' +
+      'A failed hunk blocks later hunks in that file. Other files are still checked. Add, Delete, and pure Move have empty hunk arrays. ' +
+      'lines_would_add and lines_would_remove describe fully prepared file actions. Failed files report zero counts. ' +
+      'A preview has no fully_applied or hunks_applied fields. ' +
+      'truncated flags omitted details. Inspect files_omitted and hunks_omitted, then preview smaller patches for full details. ' +
+      'A successful preview cannot guarantee later writes. Files, permissions, or available disk space can change. Apply reruns all checks.' },
+    { title: 'Preparation and partial writes', aliases: ['preflight', 'fully applied', 'retry'], guidance:
       'LC validates the authorized plan and prepares deterministic changes before writing. ' +
       'A preparation failure writes nothing. A later write failure or cancellation can leave earlier entries committed. ' +
       'Inspect fully_applied and every files entry. Read affected files again before preparing a retry. ' +
-      'There is no dry_run parameter or rollback guarantee.' },
+      'Use dry_run=true for a preview. Applying has no cross-file rollback guarantee.' },
   ]);
 
 export const LIST_DIR_GUIDANCE = operationalCatalog('lc_list_dir',

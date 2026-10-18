@@ -5541,12 +5541,14 @@ mod tests {
             );
             let planned =
                 apply_patch::tool_apply_patch_preflight(apply_patch::ApplyPatchPreflightRequest {
+                    dry_run: false,
                     patch: patch.clone(),
                     allowed_roots: Some(roots.clone()),
                 })
                 .unwrap();
             assert_eq!(std::fs::read(&file).unwrap(), bytes);
             let patched = apply_patch::tool_apply_patch(apply_patch::ApplyPatchRequest {
+                dry_run: false,
                 patch,
                 allowed_roots: Some(roots.clone()),
                 plan_id: planned.plan_id,
@@ -5644,12 +5646,14 @@ mod tests {
         );
         let planned =
             apply_patch::tool_apply_patch_preflight(apply_patch::ApplyPatchPreflightRequest {
+                dry_run: false,
                 patch: patch.clone(),
                 allowed_roots: Some(roots.clone()),
             })
             .unwrap();
         assert!(
             apply_patch::tool_apply_patch(apply_patch::ApplyPatchRequest {
+                dry_run: false,
                 patch,
                 allowed_roots: Some(roots.clone()),
                 plan_id: planned.plan_id,

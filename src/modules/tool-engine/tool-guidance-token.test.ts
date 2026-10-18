@@ -41,7 +41,7 @@ const WHITEBOARD = Object.freeze({
   completeFixedSurface: 7_506,
 });
 
-// Final rollout: retain essential safety even when it increases the prompt.
+// Recorded rollout, before adding patch preview support.
 const ROLLOUT = Object.freeze({
   toolPayload: 5_114,
   schemaPayload: 2_660,
@@ -50,6 +50,15 @@ const ROLLOUT = Object.freeze({
   systemPromptTwoRoots: 584,
   systemPromptLinux: 518,
   completeFixedSurface: 5_698,
+});
+
+// Current surface includes patch preview semantics and the optional flag.
+const PATCH_PREVIEW = Object.freeze({
+  ...ROLLOUT,
+  toolPayload: 5_165,
+  schemaPayload: 2_688,
+  schemaPayloadWithoutDescriptions: 2_227,
+  completeFixedSurface: 5_749,
 });
 
 const tools = {
@@ -87,9 +96,9 @@ describe('tool guidance token fixtures', () => {
     const prompt = buildPromptText({ tools, params: { system_prompt: '' } }, 'C:/Users/name', 'Windows');
     try {
       for (const [provider, settings, toolTokens, completeTokens] of [
-        ['brave', { brave_search_api_key: 'fixture' }, 5200, 5784],
-        ['searxng', { searxng_base_url: 'http://localhost:8080' }, 5210, 5794],
-        ['marginalia', { marginalia_api_key: 'public' }, 5224, 5808],
+        ['brave', { brave_search_api_key: 'fixture' }, 5251, 5835],
+        ['searxng', { searxng_base_url: 'http://localhost:8080' }, 5261, 5845],
+        ['marginalia', { marginalia_api_key: 'public' }, 5275, 5859],
       ] as const) {
         useSettings.setState({ tools: Object.assign({ ...original, brave_search_api_key: '', brave_search_api_key_ref: undefined,
           searxng_base_url: '', marginalia_api_key: '', marginalia_api_key_ref: undefined,
@@ -126,7 +135,7 @@ describe('tool guidance token fixtures', () => {
     });
   });
 
-  test('retains the Whiteboard baseline and measures the complete rollout exactly', () => {
+  test('retains prior baselines and measures the surface with patch previews exactly', () => {
     assert.equal(WHITEBOARD.completeFixedSurface, 7_506);
     const definitions = materialize(BUILTIN_TOOLS);
     const serializedDefinitions = JSON.stringify(definitions);
@@ -155,11 +164,11 @@ describe('tool guidance token fixtures', () => {
       systemPromptTwoRoots: countFixtureTokens(promptTwoRoots),
       systemPromptLinux: countFixtureTokens(promptLinux),
       completeFixedSurface: countFixtureTokens(`${promptTwoRoots}\n${serializedDefinitions}`),
-    }, ROLLOUT);
+    }, PATCH_PREVIEW);
 
     // Additional help-selection and U+FFFD safety rules justify the 600-token cap.
-    assert.ok(ROLLOUT.systemPromptTwoRoots <= 600);
-    assert.ok(ROLLOUT.completeFixedSurface < WHITEBOARD.completeFixedSurface);
+    assert.ok(PATCH_PREVIEW.systemPromptTwoRoots <= 600);
+    assert.ok(PATCH_PREVIEW.completeFixedSurface < WHITEBOARD.completeFixedSurface);
     for (const [name, catalog] of TOOL_GUIDANCE_CATALOGS) {
       const description = definitions.find((definition) => definition.function.name === name)?.function.description;
       assert.ok(description);
@@ -218,7 +227,7 @@ describe('tool guidance token fixtures', () => {
       lc_get_current_time: 93,
       lc_todo_write: 99,
       lc_web_fetch: 163,
-      lc_apply_patch: 272,
+      lc_apply_patch: 388,
       lc_web_search: 191,
       lc_web_research: 216,
     });
@@ -226,7 +235,7 @@ describe('tool guidance token fixtures', () => {
     const skill = getBuiltinSkill('lc:builtin:lc-tools');
     assert.ok(skill);
     const liveSkill = materializeSkillForExposure(skill, [...exposed]);
-    assert.equal(countFixtureTokens(liveSkill.content), 890);
+    assert.equal(countFixtureTokens(liveSkill.content), 897);
     assert.ok(countFixtureTokens(liveSkill.content) >= 600 && countFixtureTokens(liveSkill.content) <= 900);
   });
 });

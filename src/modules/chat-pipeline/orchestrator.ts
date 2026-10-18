@@ -2157,7 +2157,7 @@ async function runToolLoop(
           : { allowed: true };
 
         if (call.name === 'lc_apply_patch') {
-          const patchInput = parsed as { patch: string };
+          const patchInput = parsed as { patch: string; dry_run?: boolean };
           // The patch coordinator runs its own authorize/approve flow, so the
           // disposition is captured from that flow rather than the popup path
           // below — the report must describe the decision this call acted on.
@@ -2166,6 +2166,7 @@ async function runToolLoop(
           const outcome = await coordinateApplyPatch<Omit<ToolResultRecord, 'tool_call_id'>>({
             admission,
             patch: patchInput.patch,
+            dryRun: patchInput.dry_run,
             initialAllowedRoots: baseCtx.config.allowedRoots,
             reserve: () => applicationMutationCoordinator.reservePatch(roundSignal),
             discover: (patch) => baseCtx.sandbox.applyPatchTargets({ patch }),
@@ -2264,8 +2265,9 @@ async function runToolLoop(
               streamOpts._authorizationOverlay = { tools: updated };
               return { ok: true as const, allowedRoots: updated.allowed_roots ?? [] };
             },
-            preflight: (patch, allowedRoots) => baseCtx.sandbox.applyPatchPreflight({
+            preflight: (patch, allowedRoots, dryRun) => baseCtx.sandbox.applyPatchPreflight({
               patch,
+              dry_run: dryRun,
               allowed_roots: allowedRoots,
             }),
             execute: ({ allowedRoots, planId }) => {

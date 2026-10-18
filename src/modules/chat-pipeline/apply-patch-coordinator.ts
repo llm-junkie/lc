@@ -52,6 +52,7 @@ export type PatchCoordinatorResult<T> = PatchCoordinatorFailure | PatchCoordinat
 interface CoordinateApplyPatchOptions<T> {
   admission: PatchAdmission;
   patch: string;
+  dryRun?: boolean;
   initialAllowedRoots: string[];
   reserve: () => Promise<ApplyPatchLockReservation>;
   discover: (patch: string) => Promise<ApplyPatchTargetsResult>;
@@ -60,7 +61,7 @@ interface CoordinateApplyPatchOptions<T> {
   requestApproval: (requiredScopes: string[]) => Promise<PatchApproval>;
   canonicalizeApprovedScope: (requiredScope: string) => Promise<string | null | undefined>;
   persistSessionScopes: (approvedScopes: string[]) => Promise<PersistPatchScopesResult>;
-  preflight: (patch: string, allowedRoots: string[]) => Promise<ApplyPatchPreflightResult>;
+  preflight: (patch: string, allowedRoots: string[], dryRun: boolean) => Promise<ApplyPatchPreflightResult>;
   execute: (args: {
     patch: string;
     allowedRoots: string[];
@@ -212,7 +213,7 @@ export async function coordinateApplyPatch<T>(
 
     let preflight: ApplyPatchPreflightResult;
     try {
-      preflight = await options.preflight(options.patch, allowedRoots);
+      preflight = await options.preflight(options.patch, allowedRoots, options.dryRun ?? false);
     } catch (error) {
       const issue = options.normalizeError(error);
       return failure('preflight', {

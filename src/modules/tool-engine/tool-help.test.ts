@@ -68,6 +68,15 @@ function dataOf(result: ReturnType<typeof buildToolHelpEnvelope>) {
 }
 
 describe('lc_tool_help contract', () => {
+  test('explains patch previews without claiming that they apply changes', () => {
+    const data = dataOf(buildToolHelpEnvelope({ tool: 'lc_apply_patch', query: 'dry_run' }, new Set(['lc_apply_patch'])));
+    assert.equal(data.mode, 'matched');
+    const preview = data.matches?.find((match) => match.section === 'Dry run');
+    assert.ok(preview);
+    assert.match(preview.guidance, /Set dry_run=true/);
+    assert.match(preview.guidance, /failed hunk blocks later hunks/);
+    assert.match(preview.guidance, /no fully_applied or hunks_applied fields/);
+  });
   test('uses the frozen Whiteboard description and recovery remedies', () => {
     assert.equal(WHITEBOARD_GUIDANCE.essential, WHITEBOARD_MODEL_VISIBLE_TEXT_FIXTURE.description);
     for (const [code, fixture] of Object.entries(WHITEBOARD_ISSUE_FIXTURES)) {

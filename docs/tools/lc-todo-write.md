@@ -774,7 +774,7 @@ The implementation uses these decisions:
 ## 13. Implementation measurements
 
 Exact token fixtures use the repository tokenizer and complete serialized
-payloads. The current all-category fixed surface is 5,698 tokens without a search provider. A request
+payloads. The current all-category fixed surface is 5,749 tokens without a search provider. A request
 without todo state is 1,316 tokens. A surviving todo call produces 1,551
 tokens.
 
