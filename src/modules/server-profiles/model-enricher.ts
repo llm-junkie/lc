@@ -57,7 +57,8 @@ export function findProvidersInCache(cache: CompactCache, baseUrl: string): Comp
   return matched.length > 0 ? matched : Object.values(cache);
 }
 
-/** Exact match first, then case-insensitive. Mirrors Rust `lookup_in_providers()`. */
+/** Full ID first (exact, then case-insensitive), then the final segment on
+ *  both sides. Mirrors Rust `lookup_in_providers()`. */
 export function lookupInProviders(
   providers: readonly CompactProvider[],
   modelId: string,
@@ -66,8 +67,17 @@ export function lookupInProviders(
   for (const p of providers) {
     const exact = p.m[modelId];
     if (exact) return exact;
+  }
+  for (const p of providers) {
     for (const [key, m] of Object.entries(p.m)) {
       if (key.toLowerCase() === lower) return m;
+    }
+  }
+  const realId = lower.slice(lower.lastIndexOf('/') + 1);
+  if (!realId) return undefined;
+  for (const p of providers) {
+    for (const [key, m] of Object.entries(p.m)) {
+      if (key.slice(key.lastIndexOf('/') + 1).toLowerCase() === realId) return m;
     }
   }
   return undefined;
@@ -214,18 +224,6 @@ export function compactEntryToGuess(meta: CompactModelMeta): GuessedModelMeta {
   };
 }
 
-/** Candidate IDs to try, most specific first. LM Studio REST reports
- *  `publisher/model` while models.dev keys on the bare model name. */
-function guessCandidates(modelId: string): string[] {
-  const ids = [modelId];
-  const slash = modelId.indexOf('/');
-  if (slash > 0) {
-    const stripped = modelId.substring(slash + 1);
-    if (stripped && stripped !== modelId) ids.push(stripped);
-  }
-  return ids;
-}
-
 function tauriInvokeFn(): ((cmd: string, args?: unknown) => Promise<unknown>) | undefined {
   return (window as unknown as {
     __TAURI_INTERNALS__?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> };
@@ -248,13 +246,15 @@ function firstHit(result: unknown): GuessedModelMeta | null {
  * Desktop uses the Rust `lookup_models_dev` command with its real
  * `{ baseUrl, ids }` request shape; a provider-scoped miss retries against
  * every provider. The browser searches the static compact cache the same way.
+ * Both paths prefer full IDs, then compare the final slash-separated segment
+ * of the requested and cached IDs, ignoring provider/publisher prefixes.
  * Returns `null` on a miss so the caller can say so rather than guessing.
  */
 export async function guessModelMeta(
   baseUrl: string,
   modelId: string,
 ): Promise<GuessedModelMeta | null> {
-  const ids = guessCandidates(modelId);
+  const ids = [modelId];
 
   if (isTauri) {
     const invoke = tauriInvokeFn();
@@ -281,11 +281,8 @@ export async function guessModelMeta(
   const scoped = findProvidersInCache(cache, baseUrl);
   const all = Object.values(cache);
   for (const providers of [scoped, all]) {
-    for (const id of ids) {
-      const meta = lookupInProviders(providers, id);
-      if (!meta) continue;
-      return compactEntryToGuess(meta);
-    }
+    const meta = lookupInProviders(providers, modelId);
+    if (meta) return compactEntryToGuess(meta);
   }
   return null;
 }

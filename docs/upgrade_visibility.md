@@ -378,7 +378,10 @@ Correct dual-path behavior:
 
 - Tauri calls `lookup_models_dev` with `{ baseUrl, ids: [...] }`. The command
   returns an array, not the full compact cache.
-- Try the exact model ID and publisher-prefix-stripped ID.
+- Prefer the full model ID (exact, then case-insensitive). If neither matches,
+  compare only the final slash-separated segment of both the input and cached
+  IDs, ignoring provider/publisher prefixes on either side. Keep model versions,
+  sizes, and variant suffixes intact.
 - If provider-scoped Tauri lookup misses, retry with an all-provider lookup (`baseUrl: ''`).
 - Browser loads `/models-cache.json`, searches the provider-matched subset first, then all providers, using `findProvidersInCache()` and `lookupInProviders()`.
 - Fix or bypass the current `model-enricher.ts::loadCache()` Tauri branch. Do

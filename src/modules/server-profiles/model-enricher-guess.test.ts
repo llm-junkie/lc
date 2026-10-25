@@ -1,13 +1,14 @@
 /**
  * Guess lookup — the provider-scoped/all-provider search over the compact
  * models.dev cache. These are the browser half of the dual path; the desktop
- * half hands the same base URL + candidate IDs to Rust's `lookup_models_dev`,
+ * half hands the same base URL + model ID to Rust's `lookup_models_dev`,
  * whose `find_providers` / `lookup_in_providers` these mirror.
  */
 
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compactEntryToGuess, findProvidersInCache, lookupInProviders } from './model-enricher.ts';
+import { compactEntryToGuess, findProvidersInCache, guessModelMeta, lookupInProviders } from './model-enricher.ts';
+import { setRuntimeModelsCache } from '../llm-client/models/enrich.ts';
 
 const cache = {
   openai: {
@@ -21,6 +22,10 @@ const cache = {
   qwen: {
     api: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     m: { 'qwen3.6-35b-a3b': { c: 262144, v: false, r: true, t: true } },
+  },
+  runinfra: {
+    api: 'https://api.runinfra.com/v1',
+    m: { 'ornith-ai/Ornith-1.5-35B-A3B': { c: 262144, v: true, r: true, t: true } },
   },
 };
 
@@ -39,8 +44,8 @@ describe('findProvidersInCache', () => {
 
   test('falls back to every provider when nothing matches', () => {
     // A local server, a LAN address, or a gateway in front of the real API.
-    assert.equal(findProvidersInCache(cache, 'http://192.168.1.5:1234/v1').length, 3);
-    assert.equal(findProvidersInCache(cache, '').length, 3);
+    assert.equal(findProvidersInCache(cache, 'http://192.168.1.5:1234/v1').length, 4);
+    assert.equal(findProvidersInCache(cache, '').length, 4);
   });
 });
 
@@ -59,11 +64,49 @@ describe('lookupInProviders', () => {
     assert.equal(lookupInProviders(all, 'gpt-5-turbo-preview'), undefined);
   });
 
-  test('a publisher-prefixed id only matches once the prefix is stripped', () => {
-    // LM Studio REST reports `qwen/qwen3.6-35b-a3b`; models.dev keys on the
-    // bare name, which is why Guess tries both candidates.
-    assert.equal(lookupInProviders(all, 'qwen/qwen3.6-35b-a3b'), undefined);
+  test('matches a publisher-prefixed input to a bare cached id', () => {
+    assert.equal(lookupInProviders(all, 'qwen/qwen3.6-35b-a3b')?.c, 262144);
     assert.equal(lookupInProviders(all, 'qwen3.6-35b-a3b')?.c, 262144);
+  });
+
+  test('matches a bare input to a publisher-prefixed cached id, ignoring case', () => {
+    assert.equal(lookupInProviders(all, 'ornith-1.5-35b-a3b')?.c, 262144);
+  });
+
+  test('ignores different and nested prefixes on both sides', () => {
+    const providers = [{ api: '', m: { 'gateway/publisher/Model-1': { c: 8192 } } }];
+    for (const id of ['model-1', 'local/model-1', 'proxy/local/model-1']) {
+      assert.equal(lookupInProviders(providers, id)?.c, 8192, id);
+    }
+  });
+
+  test('prefers exact full IDs over case-insensitive and final-segment matches', () => {
+    const providers: Parameters<typeof lookupInProviders>[0] = [
+      { api: '', m: { 'other/model-1': { c: 8192 }, 'Publisher/Model-1': { c: 16384 } } },
+      { api: '', m: { 'publisher/model-1': { c: 32768 } } },
+    ];
+    assert.equal(lookupInProviders(providers, 'publisher/model-1')?.c, 32768);
+    assert.equal(lookupInProviders(providers, 'PUBLISHER/MODEL-1')?.c, 16384);
+  });
+
+  test('preserves model versions, sizes, and variant suffixes', () => {
+    for (const id of [
+      'ornith-1.0-35b-a3b',
+      'ornith-1.5-122b',
+      'ornith-1.5-35b-a3b:thinking',
+      'ornith-1.5-35b-a3b-fp8',
+    ]) {
+      assert.equal(lookupInProviders(all, id), undefined, id);
+    }
+    const variants = [{ api: '', m: { 'publisher/model-1:thinking': { c: 8192 } } }];
+    assert.equal(lookupInProviders(variants, 'model-1'), undefined);
+    assert.equal(lookupInProviders(variants, 'other/model-1:thinking')?.c, 8192);
+  });
+
+  test('does not match empty final segments', () => {
+    const providers = [{ api: '', m: { 'publisher/': { c: 8192 } } }];
+    assert.equal(lookupInProviders(providers, ''), undefined);
+    assert.equal(lookupInProviders(providers, 'other/'), undefined);
   });
 
   test('a scoped miss can still be found across all providers', () => {
@@ -74,6 +117,45 @@ describe('lookupInProviders', () => {
 
   test('preserves a stored false capability', () => {
     assert.equal(lookupInProviders(all, 'qwen3.6-35b-a3b')?.v, false);
+  });
+});
+
+describe('guessModelMeta browser lookup', () => {
+  test('resolves the bare Ornith ID from a LAN server against a prefixed cache key', async () => {
+    setRuntimeModelsCache(cache);
+    try {
+      assert.deepEqual(await guessModelMeta('http://192.168.1.5:1234/v1', 'ornith-1.5-35b-a3b'), {
+        context_window: 262144,
+        capabilities: { vision: true, reasoning: true, tools: true },
+      });
+    } finally {
+      setRuntimeModelsCache(null);
+    }
+  });
+
+  test('retries all providers after a scoped final-segment miss', async () => {
+    setRuntimeModelsCache(cache);
+    try {
+      const meta = await guessModelMeta('https://api.openai.com/v1', 'gateway/local/ornith-1.5-35b-a3b');
+      assert.equal(meta?.context_window, 262144);
+      assert.equal(await guessModelMeta('', 'local/unknown-model'), null);
+    } finally {
+      setRuntimeModelsCache(null);
+    }
+  });
+
+  test('keeps provider-specific metadata ahead of other providers with the same final ID', async () => {
+    setRuntimeModelsCache({
+      other: { api: 'https://other.example/v1', m: { 'model-1': { c: 32768 } } },
+      local: { api: 'https://local.example/v1', m: { 'publisher/model-1': { c: 8192, t: false } } },
+    });
+    try {
+      const meta = await guessModelMeta('https://local.example/v1', 'gateway/model-1');
+      assert.equal(meta?.context_window, 8192);
+      assert.deepEqual(meta?.capabilities, { tools: false });
+    } finally {
+      setRuntimeModelsCache(null);
+    }
   });
 });
 

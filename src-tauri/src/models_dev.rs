@@ -199,16 +199,26 @@ fn model_to_meta(m: &CompactModel) -> ModelMeta {
     }
 }
 
-/// Look up a model ID in matched providers.  Tries exact match first, then
-/// case-insensitive.  Returns the first match found.
+/// Prefer the full model ID (exact, then case-insensitive), then compare the
+/// final segment on both sides, ignoring provider/publisher prefixes.
 fn lookup_in_providers(providers: &[&ProviderEntry], api_id: &str) -> Option<ModelMeta> {
     let lower = api_id.to_lowercase();
     for p in providers {
         if let Some(m) = p.m.get(api_id) {
             return Some(model_to_meta(m));
         }
+    }
+    for p in providers {
         for (key, m) in &p.m {
             if key.to_lowercase() == lower {
+                return Some(model_to_meta(m));
+            }
+        }
+    }
+    let real_id = lower.rsplit('/').next().filter(|id| !id.is_empty())?;
+    for p in providers {
+        for (key, m) in &p.m {
+            if key.rsplit('/').next()?.to_lowercase() == real_id {
                 return Some(model_to_meta(m));
             }
         }
@@ -788,5 +798,83 @@ mod tests {
         // Case-insensitive fallback still works.
         assert!(lookup_in_providers(&all, "GPT-5").is_some());
         assert!(lookup_in_providers(&all, "not-a-model").is_none());
+    }
+
+    #[test]
+    fn lookup_matches_final_segments_on_both_sides() {
+        let provider: ProviderEntry = serde_json::from_str(
+            r#"{"api":"https://example.test/v1","m":{
+                "gateway/ornith-ai/Ornith-1.5-35B-A3B":{"c":262144,"v":true,"r":true,"t":false},
+                "qwen3.6-35b-a3b":{"c":131072}
+            }}"#,
+        )
+        .unwrap();
+        for id in [
+            "ornith-1.5-35b-a3b",
+            "local/ornith-1.5-35b-a3b",
+            "proxy/local/ornith-1.5-35b-a3b",
+        ] {
+            let hit = lookup_in_providers(&[&provider], id).expect(id);
+            assert_eq!(hit.context_window, Some(262144));
+            assert_eq!(hit.capabilities.unwrap().tools, Some(false));
+        }
+        let hit = lookup_in_providers(&[&provider], "qwen/qwen3.6-35b-a3b").unwrap();
+        assert_eq!(hit.context_window, Some(131072));
+        assert!(hit.capabilities.is_none());
+    }
+
+    #[test]
+    fn lookup_prefers_full_ids_before_final_segments() {
+        let first: ProviderEntry = serde_json::from_str(
+            r#"{"api":"","m":{
+                "other/model-1":{"c":8192},
+                "Publisher/Model-1":{"c":16384}
+            }}"#,
+        )
+        .unwrap();
+        let second: ProviderEntry =
+            serde_json::from_str(r#"{"api":"","m":{"publisher/model-1":{"c":32768}}}"#).unwrap();
+        let providers = [&first, &second];
+        assert_eq!(
+            lookup_in_providers(&providers, "publisher/model-1")
+                .unwrap()
+                .context_window,
+            Some(32768)
+        );
+        assert_eq!(
+            lookup_in_providers(&providers, "PUBLISHER/MODEL-1")
+                .unwrap()
+                .context_window,
+            Some(16384)
+        );
+    }
+
+    #[test]
+    fn lookup_preserves_model_variants_and_rejects_empty_final_segments() {
+        let provider: ProviderEntry = serde_json::from_str(
+            r#"{"api":"","m":{
+                "ornith-ai/Ornith-1.5-35B-A3B":{"c":262144},
+                "publisher/model-1:thinking":{"c":8192},
+                "publisher/":{"c":4096}
+            }}"#,
+        )
+        .unwrap();
+        for id in [
+            "ornith-1.0-35b-a3b",
+            "ornith-1.5-122b",
+            "ornith-1.5-35b-a3b:thinking",
+            "ornith-1.5-35b-a3b-fp8",
+            "model-1",
+            "",
+            "other/",
+        ] {
+            assert!(lookup_in_providers(&[&provider], id).is_none(), "{id}");
+        }
+        assert_eq!(
+            lookup_in_providers(&[&provider], "other/model-1:thinking")
+                .unwrap()
+                .context_window,
+            Some(8192)
+        );
     }
 }

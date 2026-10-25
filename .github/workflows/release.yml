@@ -102,7 +102,7 @@ jobs:
           cache: npm
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@1.98.1
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.rust-targets }}
 

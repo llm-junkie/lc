@@ -504,9 +504,16 @@ REST keys such as `qwen/qwen3.6-35b-a3b`. LC removes the `qwen/` publisher
 prefix and retries with `qwen3.6-35b-a3b`.
 
 **Tauri `lookup_models_dev` fallback:** If Rust returns `null` for a model, JS
-loads `models-cache.json` and applies prefix-removal lookup. This commonly
-occurs for publisher-prefixed keys from local LM Studio servers. The fallback
-lets local-server models receive models.dev metadata.
+loads `models-cache.json` and applies prefix-removal lookup. This gives model
+discovery another chance to fill missing metadata from the frontend cache.
+
+**Guess matching:** The override editor and Rust lookup prefer full IDs (exact,
+then case-insensitive), then compare the final slash-separated segment on both
+sides. For example, `ornith-1.5-35b-a3b` matches the cached
+`ornith-ai/Ornith-1.5-35B-A3B`, as does `gateway/local/ornith-1.5-35b-a3b`.
+Model versions, sizes, and suffixes such as `:thinking` remain significant.
+Guess searches the provider selected by the base URL first, then all providers
+on a miss, and fills the form for review before Save.
 
 **Tauri background refresh** (`sync_models_dev` command):
 - If `models-cache.json` in the app data directory is less than 24 h old, skip

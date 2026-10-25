@@ -47,7 +47,7 @@ jobs:
       # the graph without compiling — same as the CI licensing job, which needs
       # no platform build dependencies either.
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@1.98.1
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Install dependencies
         run: npm ci
@@ -96,7 +96,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@1.98.1
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Cache Cargo downloads
         uses: actions/cache@v6.1.0
@@ -166,7 +166,7 @@ jobs:
           cache: npm
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@1.98.1
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.rust-targets }}
 
