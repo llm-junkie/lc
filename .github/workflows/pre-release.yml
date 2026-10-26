@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7.0.0
+        uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7.0.0
+        uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -160,7 +160,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7.0.0
+        uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -222,7 +222,7 @@ jobs:
           zip -r "$GITHUB_WORKSPACE/portable/lc_${{ steps.version.outputs.version }}_${{ matrix.portable-platform }}_${{ matrix.portable-arch }}-portable.zip" "LLM Client.app"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ matrix.name }}
           # Installers/bundles live in target/{release,<triple>/release}/bundle,
